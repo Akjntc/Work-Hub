@@ -1563,7 +1563,67 @@
     </button>
   </div>
 
-  <div class="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px] lg:gap-8">
+  <!-- Abas do Laboratório: Procedimentos (gerador existente) | Relatórios de Ensaio
+       (gerador assistido do ANEXO 378 — ver "GERADOR DE RELATÓRIOS DE ENSAIO"). -->
+  <div id="labAbas" class="mb-6 inline-flex rounded-rinnai border border-rinnai-line bg-rinnai-card p-1" role="tablist">
+    <button type="button" role="tab" data-lab-aba="procedimentos" class="tradutor-modo-btn is-active !px-4 !py-1.5 !text-[13px]" data-i18n="rt.abaProc">Procedimentos de Ensaio</button>
+    <button type="button" role="tab" data-lab-aba="relatorios" class="tradutor-modo-btn !px-4 !py-1.5 !text-[13px]" data-i18n="rt.abaRel">Relatórios de Ensaio</button>
+  </div>
+
+  <section id="labVistaRelatorios" class="hidden">
+    <div class="card mb-4 flex flex-wrap items-end gap-3 p-4">
+      <div class="min-w-[220px] flex-1">
+        <label for="rtSelRascunho" class="text-[11.5px] font-bold uppercase tracking-wider text-rinnai-g2" data-i18n="rt.emEdicao">Relatório em edição</label>
+        <select id="rtSelRascunho" class="field mt-1 !py-2 !text-[13px]"></select>
+      </div>
+      <div>
+        <label for="rtSelVersao" class="text-[11.5px] font-bold uppercase tracking-wider text-rinnai-g2" data-i18n="rt.versao">Versão para novo relatório</label>
+        <select id="rtSelVersao" class="field mt-1 !py-2 !text-[13px]"></select>
+      </div>
+      <button type="button" id="btnRtNovo" class="btn-primary !px-4 !py-2.5 !text-[13px]"><span class="pointer-events-none">+</span> <span class="pointer-events-none" data-i18n="rt.novo">Novo relatório</span></button>
+      <button type="button" id="btnRtExcluir" class="btn-ghost !px-3 !py-2.5 !text-[12.5px]" data-i18n="rt.excluir">Excluir rascunho</button>
+      <span id="rtSalvoStatus" class="w-full text-[11.5px] text-rinnai-g3 sm:w-auto" aria-live="polite"></span>
+    </div>
+    <p id="rtModeloInfo" class="mb-4 flex flex-wrap items-center gap-2 text-[12px] text-rinnai-g2"></p>
+    <input type="file" id="rtModeloInput" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden" />
+
+    <div id="rtVazio" class="card px-6 py-14 text-center">
+      <p class="text-[15px] font-semibold text-rinnai-g1" data-i18n="rt.vazioTitulo">Nenhum relatório em edição</p>
+      <p class="mx-auto mt-2 max-w-xl text-[13px] text-rinnai-g2" data-i18n="rt.vazioTexto">Comece um relatório novo ou escolha um rascunho acima. Você preenche cada seção do modelo do laboratório; a IA só sugere melhorias de redação, e nada entra no relatório sem a sua aprovação.</p>
+    </div>
+
+    <div id="rtEditor" class="hidden grid grid-cols-1 gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <aside class="card h-fit p-4 lg:sticky lg:top-28">
+        <p class="text-[11.5px] font-bold uppercase tracking-wider text-rinnai-g2" data-i18n="rt.progresso">Progresso</p>
+        <p id="rtProgressoTxt" class="mb-1.5 text-[11.5px] text-rinnai-g3"></p>
+        <div class="mb-3 h-2 overflow-hidden rounded-full bg-rinnai-g4"><div id="rtProgressoBarra" class="h-full rounded-full bg-rinnai-red transition-all" style="width:0%"></div></div>
+        <ol id="rtEtapas" class="space-y-1"></ol>
+        <p class="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[10.5px] text-rinnai-g3">
+          <span><span class="mr-1 inline-block h-2 w-2 rounded-full bg-rinnai-g3"></span><span data-i18n="rt.legPend">pendente</span></span>
+          <span><span class="mr-1 inline-block h-2 w-2 rounded-full bg-amber-500"></span><span data-i18n="rt.legPreen">preenchida</span></span>
+          <span><span class="mr-1 inline-block h-2 w-2 rounded-full bg-green-600"></span><span data-i18n="rt.legRev">revisada</span></span>
+          <span><span class="mr-1 inline-block h-2 w-2 rounded-full bg-violet-600"></span><span data-i18n="rt.legSug">sugestão aguardando</span></span>
+        </p>
+      </aside>
+      <div class="min-w-0"><div id="rtPainel" class="card p-5 md:p-6"></div></div>
+    </div>
+
+    <!-- Estrutura do modelo (conferência) / nova revisão do modelo -->
+    <div id="rtModeloModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4">
+      <div class="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-rinnai-lg border border-rinnai-line bg-rinnai-card shadow-2xl" role="dialog" aria-modal="true">
+        <div class="flex items-center justify-between gap-2 border-b border-rinnai-line px-6 py-4">
+          <h2 id="rtModeloModalTitulo" class="text-[17px] font-bold text-rinnai-g1">Estrutura do modelo</h2>
+          <button type="button" data-rt-fechar-modal title="Fechar" class="grid h-8 w-8 shrink-0 place-items-center rounded-rinnai text-rinnai-g2 transition hover:bg-rinnai-g4 hover:text-rinnai-red">
+            <svg class="pointer-events-none h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div id="rtModeloModalCorpo" class="flex-1 overflow-y-auto px-6 py-4"></div>
+        <div id="rtModeloModalAcoes" class="flex flex-wrap justify-end gap-2 border-t border-rinnai-line px-6 py-4"></div>
+      </div>
+    </div>
+  </section>
+
+  <div id="labVistaProcedimentos" class="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px] lg:gap-8">
 
     <!-- ============ COLUNA PRINCIPAL ============ -->
     <div class="min-w-0">
@@ -5242,6 +5302,20 @@ const I18N = {
     "setoresHub.eyebrow": "Setores",
     "outrosHub.eyebrow": "Outros",
     "outrosHub.tradutor": "Tradutor de documentos",
+    "rt.abaProc": "Procedimentos de Ensaio",
+    "rt.abaRel": "Relatórios de Ensaio",
+    "rt.titulo": "Gerar Relatório de Ensaio",
+    "rt.emEdicao": "Relatório em edição",
+    "rt.versao": "Versão para novo relatório",
+    "rt.novo": "Novo relatório",
+    "rt.excluir": "Excluir rascunho",
+    "rt.vazioTitulo": "Nenhum relatório em edição",
+    "rt.vazioTexto": "Comece um relatório novo ou escolha um rascunho acima. Você preenche cada seção do modelo do laboratório; a IA só sugere melhorias de redação, e nada entra no relatório sem a sua aprovação.",
+    "rt.progresso": "Progresso",
+    "rt.legPend": "pendente",
+    "rt.legPreen": "preenchida",
+    "rt.legRev": "revisada",
+    "rt.legSug": "sugestão aguardando",
     "outrosHub.pesquisador": "Pesquisador de Informações de Normas",
     "pn.title": "Pesquisador de Informações de Normas",
     "pn.subtitle": "Pesquisa normativa com rastreabilidade: cada afirmação passa por 4 revisões antes de ser exibida. O que não puder ser confirmado é declarado como limitação.",
@@ -5538,6 +5612,20 @@ const I18N = {
     "setoresHub.eyebrow": "Sectors",
     "outrosHub.eyebrow": "Other",
     "outrosHub.tradutor": "Document translator",
+    "rt.abaProc": "Test Procedures",
+    "rt.abaRel": "Test Reports",
+    "rt.titulo": "Generate Test Report",
+    "rt.emEdicao": "Report being edited",
+    "rt.versao": "Version for new report",
+    "rt.novo": "New report",
+    "rt.excluir": "Delete draft",
+    "rt.vazioTitulo": "No report being edited",
+    "rt.vazioTexto": "Start a new report or pick a draft above. You fill in each section of the laboratory template; the AI only suggests wording improvements, and nothing goes into the report without your approval.",
+    "rt.progresso": "Progress",
+    "rt.legPend": "pending",
+    "rt.legPreen": "filled",
+    "rt.legRev": "reviewed",
+    "rt.legSug": "suggestion pending",
     "outrosHub.pesquisador": "Standards Information Researcher",
     "pn.title": "Standards Information Researcher",
     "pn.subtitle": "Traceable standards research: every claim goes through 4 reviews before it is shown. Anything that cannot be confirmed is reported as a limitation.",
@@ -5840,6 +5928,20 @@ const I18N = {
     "setoresHub.eyebrow": "部門",
     "outrosHub.eyebrow": "その他",
     "outrosHub.tradutor": "文書翻訳ツール",
+    "rt.abaProc": "試験手順",
+    "rt.abaRel": "試験報告書",
+    "rt.titulo": "試験報告書を作成",
+    "rt.emEdicao": "編集中の報告書",
+    "rt.versao": "新規報告書の版",
+    "rt.novo": "新しい報告書",
+    "rt.excluir": "下書きを削除",
+    "rt.vazioTitulo": "編集中の報告書はありません",
+    "rt.vazioTexto": "新しい報告書を開始するか、上の下書きを選んでください。各セクションはあなたが入力し、AI は文章の改善を提案するだけです。承認なしに報告書へ反映されることはありません。",
+    "rt.progresso": "進捗",
+    "rt.legPend": "未入力",
+    "rt.legPreen": "入力済み",
+    "rt.legRev": "確認済み",
+    "rt.legSug": "提案待ち",
     "outrosHub.pesquisador": "規格情報リサーチ",
     "pn.title": "規格情報リサーチ",
     "pn.subtitle": "追跡可能な規格調査: すべての主張は表示前に 4 回のレビューを経ます。確認できない内容は制約として示します。",
@@ -6928,6 +7030,7 @@ function atualizarTituloSetor() {
   if (!E.headerTitle) return;
   const base = t("header.title");
   E.headerTitle.textContent = activeSector ? `${base} - ${t(`hub.sector.${activeSector}`)}` : base;
+  try { rtAtualizarTituloLab(); } catch (e) {} // aba "Relatórios de Ensaio" ativa → título dela
 }
 
 /* Carrega o setor escolhido: define activeSector, recarrega os 4 conjuntos de
@@ -9334,6 +9437,1186 @@ if (PN.modulo) {
     if (!pnRegistroAtual) return;
     downloadBlob(new Blob(["﻿" + pnRelatorioMarkdown(pnRegistroAtual)], { type: "text/markdown;charset=utf-8" }), `pesquisa-normativa-${new Date(pnRegistroAtual.criadoEm).toISOString().slice(0, 10)}.md`);
   });
+}
+
+/* ANEXO 378 — RELATÓRIO DE TESTE P&D (REV 04): arquivo .xlsx ORIGINAL do laboratório,
+   em base64. É a base estrutural E visual de todo relatório gerado — não editar à mão;
+   para uma nova revisão, use "Carregar nova revisão (.xlsx)" na tela. */
+const RT_MODELO_PADRAO_B64 = "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";
+
+/* ============================================================================
+   GERADOR DE RELATÓRIOS DE ENSAIO (Laboratório P&D)
+   ----------------------------------------------------------------------------
+   Modelo obrigatório: ANEXO 378 — RELATÓRIO DE TESTE P&D (REV 04), embutido
+   abaixo como o .xlsx ORIGINAL do laboratório. Nada da estrutura é escrito à
+   mão neste código: rtLerModelo() lê títulos, campos, linhas de texto, caixas
+   de seleção e assinaturas DIRETO das células/mesclagens/estilos da planilha
+   (área de impressão de cada aba). O relatório final é o próprio .xlsx do
+   modelo com as células preenchidas (rtGerarXlsx) — logo, faixas, bordas,
+   cabeçalho/rodapé de impressão e as demais abas ficam intactos.
+   O usuário escreve; a IA só sugere redação (rtAprimorarSecao) e a sugestão
+   só entra no relatório se o usuário aceitar. Checagens determinísticas
+   (rtVerificarFidelidade) apontam números, unidades, datas e códigos que a
+   sugestão alterou, omitiu ou acrescentou.
+   ========================================================================== */
+const RT_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+const RT_NS_REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const LS_RT_RASCUNHOS = "rinnai_relteste_rascunhos_v1";
+const LS_RT_MODELO = "rinnai_relteste_modelo_v1";
+const RT_ALT_LINHA_PT = 12.75; // altura de uma linha de Arial 10 no Excel (pt)
+
+const rtCol = (ref) => { let n = 0; for (const ch of ref.replace(/\d+/g, "")) n = n * 26 + (ch.charCodeAt(0) - 64); return n; };
+const rtLin = (ref) => +ref.replace(/[A-Z]+/g, "");
+const rtRef = (col, lin) => { let s = ""; for (let c = col; c > 0; c = Math.floor((c - 1) / 26)) s = String.fromCharCode(65 + ((c - 1) % 26)) + s; return s + lin; };
+const rtXml = (txt) => new DOMParser().parseFromString(txt, "application/xml");
+const rtFilhos = (no, nome) => Array.from(no ? no.getElementsByTagNameNS(RT_NS, nome) : []);
+function rtB64ParaBuffer(b64) { const bin = atob(b64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
+function rtBufferParaB64(buf) { const u = new Uint8Array(buf); let s = ""; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); }
+async function rtHash(buf) {
+  try { const h = await crypto.subtle.digest("SHA-256", buf); return Array.from(new Uint8Array(h)).slice(0, 8).map((b) => b.toString(16).padStart(2, "0")).join(""); }
+  catch (e) { return String(buf.byteLength); }
+}
+
+/* Lê o .xlsx do modelo e devolve as abas visíveis com a grade (para a
+   pré-visualização) e a ESTRUTURA (para o assistente), na ordem do modelo. */
+async function rtLerModelo(buffer) {
+  if (!window.JSZip) throw new Error("JSZip não carregou (sem internet?). Recarregue a página.");
+  const zip = await window.JSZip.loadAsync(buffer);
+  const ler = async (p) => { const f = zip.file(p); return f ? f.async("string") : null; };
+  const wb = rtXml(await ler("xl/workbook.xml"));
+  const rels = rtXml(await ler("xl/_rels/workbook.xml.rels"));
+  const alvoRel = {};
+  Array.from(rels.getElementsByTagName("Relationship")).forEach((r) => { alvoRel[r.getAttribute("Id")] = r.getAttribute("Target"); });
+  // Textos compartilhados
+  const sst = await ler("xl/sharedStrings.xml");
+  const strings = sst ? rtFilhos(rtXml(sst), "si").map((si) => rtFilhos(si, "t").map((t) => t.textContent).join("")) : [];
+  // Estilos: negrito, preenchimento, bordas, tamanho/cor da fonte, alinhamento
+  const st = rtXml(await ler("xl/styles.xml"));
+  const fontes = rtFilhos(rtFilhos(st, "fonts")[0], "font").map((f) => ({
+    negrito: rtFilhos(f, "b").length > 0 && rtFilhos(f, "b")[0].getAttribute("val") !== "0",
+    tamanho: +((rtFilhos(f, "sz")[0] || { getAttribute: () => 10 }).getAttribute("val")) || 10,
+    cor: (rtFilhos(f, "color")[0] && rtFilhos(f, "color")[0].getAttribute("rgb")) || "",
+  }));
+  const preenchidos = rtFilhos(rtFilhos(st, "fills")[0], "fill").map((f) => { const p = rtFilhos(f, "patternFill")[0]; return !!p && !!p.getAttribute("patternType") && p.getAttribute("patternType") !== "none"; });
+  const bordas = rtFilhos(rtFilhos(st, "borders")[0], "border").map((b) => {
+    const lado = (n) => { const e = rtFilhos(b, n)[0]; return !!e && !!e.getAttribute("style"); };
+    return { e: lado("left"), d: lado("right"), t: lado("top"), b: lado("bottom") };
+  });
+  const xfs = rtFilhos(rtFilhos(st, "cellXfs")[0], "xf").map((x) => {
+    const al = rtFilhos(x, "alignment")[0];
+    return { fonte: fontes[+x.getAttribute("fontId") || 0] || {}, preenchido: !!preenchidos[+x.getAttribute("fillId") || 0], borda: bordas[+x.getAttribute("borderId") || 0] || {}, alinh: al ? al.getAttribute("horizontal") || "" : "", quebra: !!al && al.getAttribute("wrapText") === "1" };
+  });
+  // Áreas de impressão (_xlnm.Print_Area por aba)
+  const areas = {};
+  rtFilhos(wb, "definedName").filter((d) => d.getAttribute("name") === "_xlnm.Print_Area").forEach((d) => {
+    const m = d.textContent.match(/\$([A-Z]+)\$(\d+):\$([A-Z]+)\$(\d+)/);
+    if (m) areas[d.getAttribute("localSheetId")] = { c1: rtCol(m[1]), l1: +m[2], c2: rtCol(m[3]), l2: +m[4] };
+  });
+  // Logotipo (primeira imagem do desenho de cada aba) — só para a pré-visualização
+  const abas = [];
+  const sheets = rtFilhos(wb, "sheet");
+  for (let i = 0; i < sheets.length; i++) {
+    const s = sheets[i];
+    const caminho = "xl/" + alvoRel[s.getAttributeNS(RT_NS_REL, "id") || s.getAttribute("r:id")].replace(/^\/?xl\//, "");
+    const oculta = (s.getAttribute("state") || "") !== "" && s.getAttribute("state") !== "visible";
+    const xml = rtXml(await ler(caminho));
+    const area = areas[String(i)] || null;
+    const grade = rtGrade(xml, strings, xfs, area);
+    let logo = null;
+    try {
+      const relsAba = await ler(caminho.replace(/worksheets\/(sheet\d+\.xml)$/, "worksheets/_rels/$1.rels"));
+      const dr = relsAba && Array.from(rtXml(relsAba).getElementsByTagName("Relationship")).find((r) => /drawing/.test(r.getAttribute("Type")));
+      if (dr) {
+        const pDr = "xl/" + dr.getAttribute("Target").replace(/^\.\.\//, "");
+        const relsDr = await ler(pDr.replace(/drawings\/(drawing\d+\.xml)$/, "drawings/_rels/$1.rels"));
+        const im = relsDr && Array.from(rtXml(relsDr).getElementsByTagName("Relationship")).find((r) => /image/.test(r.getAttribute("Type")));
+        if (im) {
+          const pIm = "xl/" + im.getAttribute("Target").replace(/^\.\.\//, "");
+          const ext = (pIm.split(".").pop() || "png").toLowerCase();
+          logo = `data:image/${ext === "jpg" ? "jpeg" : ext};base64,` + await zip.file(pIm).async("base64");
+        }
+      }
+    } catch (e) {}
+    abas.push({ indice: i, nome: s.getAttribute("name"), caminho, oculta, area, grade, logo, estrutura: grade ? rtEstrutura(grade) : null });
+  }
+  return { abas, zip };
+}
+
+/* Grade da área de impressão: uma "âncora" por célula/mesclagem, com texto,
+   estilo e extensão — exatamente o que está no arquivo. */
+function rtGrade(xml, strings, xfs, area) {
+  if (!area) return null;
+  const merges = rtFilhos(xml, "mergeCell").map((m) => {
+    const [a, b] = m.getAttribute("ref").split(":");
+    return { c1: rtCol(a), l1: rtLin(a), c2: rtCol(b || a), l2: rtLin(b || a) };
+  });
+  const coberto = new Map(); // "col,lin" → merge
+  merges.forEach((m) => { for (let l = m.l1; l <= m.l2; l++) for (let c = m.c1; c <= m.c2; c++) coberto.set(c + "," + l, m); });
+  const celulas = new Map();
+  rtFilhos(xml, "c").forEach((c) => {
+    const ref = c.getAttribute("r"), t = c.getAttribute("t") || "", v = rtFilhos(c, "v")[0];
+    let texto = null, bool = null;
+    if (t === "s" && v) texto = strings[+v.textContent] || "";
+    else if (t === "inlineStr") texto = rtFilhos(c, "t").map((x) => x.textContent).join("");
+    else if (t === "str" && v) texto = v.textContent;
+    else if (t === "b" && v) bool = v.textContent === "1";
+    else if (v) texto = v.textContent;
+    celulas.set(ref, { ref, s: +c.getAttribute("s") || 0, texto, bool });
+  });
+  const alturas = {};
+  rtFilhos(xml, "row").forEach((r) => { if (r.getAttribute("ht")) alturas[+r.getAttribute("r")] = +r.getAttribute("ht"); });
+  const padrao = +((rtFilhos(xml, "sheetFormatPr")[0] || { getAttribute: () => 12.75 }).getAttribute("defaultRowHeight")) || 12.75;
+  const larguras = {};
+  rtFilhos(xml, "col").forEach((c) => { for (let i = +c.getAttribute("min"); i <= +c.getAttribute("max"); i++) larguras[i] = +c.getAttribute("width"); });
+  const linhas = [];
+  for (let l = area.l1; l <= area.l2; l++) {
+    const ancoras = [];
+    for (let c = area.c1; c <= area.c2; c++) {
+      const m = coberto.get(c + "," + l);
+      if (m && (m.c1 !== c || m.l1 !== l)) continue;
+      const ref = rtRef(c, l), cel = celulas.get(ref) || { ref, s: 0, texto: null, bool: null };
+      const fim = m ? Math.min(m.c2, area.c2) : c;
+      const estilo = xfs[cel.s] || {};
+      ancoras.push({ ref, col: c, colFim: fim, linhas: m ? m.l2 - m.l1 + 1 : 1, texto: cel.texto, bool: cel.bool, s: cel.s, estilo,
+        larguraTotal: fim === area.c2 && c === area.c1, mesclada: !!m });
+    }
+    linhas.push({ lin: l, altura: alturas[l] != null ? alturas[l] : padrao, ancoras });
+  }
+  const largUnid = [];
+  for (let c = area.c1; c <= area.c2; c++) largUnid.push(larguras[c] || 8.43);
+  return { area, linhas, larguras: largUnid };
+}
+
+/* Estrutura do assistente, derivada da grade (sem lista fixa):
+   • título de seção = célula de largura total, negrito e com preenchimento,
+     no estilo que mais se repete entre elas (a faixa CONFIDENCIAL, com outro
+     estilo, continua como texto fixo do cabeçalho);
+   • campo = texto com ":" (ou "N°") — o valor vai na mesma célula, depois do
+     rótulo, ou na célula vazia à direita, quando existir;
+   • linha de texto = célula de largura total, vazia, com altura de linha
+     normal (linhas de 6,75 pt são só espaçamento);
+   • caixa de seleção = célula lógica (VERDADEIRO/FALSO) + rótulo à direita;
+   • assinatura = linha cujas células ficam sob um cabeçalho em negrito com
+     preenchimento (o nome pré-impresso vira o valor padrão).
+   Elementos antes do 1º título formam a etapa de identificação; depois da
+   última seção de texto, o bloco de fechamento (parecer/assinaturas). */
+function rtEstrutura(grade) {
+  const cand = [];
+  grade.linhas.forEach((ln) => ln.ancoras.forEach((a) => {
+    if (a.larguraTotal && a.texto && a.texto.trim() && a.estilo.preenchido && a.estilo.fonte && a.estilo.fonte.negrito) cand.push(a.s);
+  }));
+  const freq = {};
+  cand.forEach((s) => { freq[s] = (freq[s] || 0) + 1; });
+  const estiloSecao = Object.keys(freq).sort((a, b) => freq[b] - freq[a])[0];
+  const etapas = [];
+  let atual = { id: "identificacao", titulo: "", tipo: "inicio", linhaIni: grade.area.l1, elementos: [] };
+  let anterior = null; // linha anterior com âncoras (para assinaturas)
+  const ehCabecalhoTabela = (ln) => ln && ln.ancoras.length > 1 && ln.ancoras.filter((a) => a.texto && a.texto.trim()).length === ln.ancoras.length && ln.ancoras.every((a) => a.estilo.preenchido && a.estilo.fonte.negrito);
+  let encerrouTexto = false;
+  for (const ln of grade.linhas) {
+    const anc = ln.ancoras;
+    const titulo = anc.length === 1 && anc[0].larguraTotal && anc[0].texto && anc[0].texto.trim() && String(anc[0].s) === estiloSecao;
+    if (titulo) {
+      if (atual.elementos.length || atual.titulo) etapas.push(atual);
+      atual = { id: "sec_" + rtLin(anc[0].ref), titulo: anc[0].texto.trim(), ref: anc[0].ref, tipo: "secao", linhaIni: ln.lin, elementos: [] };
+      anterior = ln; continue;
+    }
+    const temCheck = anc.some((a) => a.bool !== null);
+    if (atual.tipo === "secao" && temCheck && !encerrouTexto && etapas.concat([atual]).some((e) => e.elementos.some((x) => x.tipo === "linha"))) {
+      // Primeira caixa de seleção depois das seções de texto → bloco de fechamento.
+      etapas.push(atual);
+      atual = { id: "fechamento", titulo: "", tipo: "fechamento", linhaIni: ln.lin, elementos: [] };
+      encerrouTexto = true;
+    }
+    for (let i = 0; i < anc.length; i++) {
+      const a = anc[i];
+      const txt = a.texto != null ? String(a.texto) : "";
+      if (a.bool !== null) {
+        const rot = anc[i + 1] && anc[i + 1].texto ? anc[i + 1] : null;
+        atual.elementos.push({ tipo: "check", ref: a.ref, rotulo: rot ? rot.texto.trim() : "", refRotulo: rot ? rot.ref : "", padrao: a.bool, linha: ln.lin });
+        if (rot) i++;
+        // "Outros, especificar :" — o rótulo pede um complemento na célula vazia seguinte.
+        const viz = anc[i + 1];
+        if (rot && /:\s*$/.test(rot.texto) && viz && viz.texto == null && viz.bool === null) {
+          const resto = anc.slice(i + 1).every((x) => x.texto == null && x.bool === null) ? anc.slice(i + 1).reduce((t, x) => t + x.colFim - x.col + 1, 0) : viz.colFim - viz.col + 1;
+          atual.elementos.push({ tipo: "campo", modo: "celula_valor", ref: viz.ref, refRotulo: rot.ref, rotulo: rot.texto.trim(), prefixo: "", padrao: "", linha: ln.lin, largura: resto, complementoDe: a.ref });
+          i++;
+        }
+        continue;
+      }
+      if (ehCabecalhoTabela(anterior) && anterior.ancoras.length === anc.length && anterior.ancoras.every((h, k) => h.col === anc[k].col && h.colFim === anc[k].colFim)) {
+        atual.elementos.push({ tipo: "campo", modo: "substituir", ref: a.ref, rotulo: anterior.ancoras[i].texto.trim(), prefixo: "", padrao: txt.trim(), linha: ln.lin, largura: a.colFim - a.col + 1 });
+        continue;
+      }
+      const mRot = txt.match(/^(\s*[^:\n]{1,60}?:)\s*(.*)$/s) || txt.match(/^(\s*N\s*[°º])(?:\s+(.*))?\s*$/s);
+      if (mRot) {
+        mRot[2] = mRot[2] || "";
+        const vizinho = anc[i + 1];
+        if (vizinho && vizinho.texto == null && vizinho.bool === null && !vizinho.larguraTotal) {
+          atual.elementos.push({ tipo: "campo", modo: "celula_valor", ref: vizinho.ref, refRotulo: a.ref, rotulo: mRot[1].trim(), prefixo: "", padrao: mRot[2].trim(), linha: ln.lin, largura: vizinho.colFim - vizinho.col + 1 + (anc.slice(i + 2).every((x) => x.texto == null) ? anc.slice(i + 2).reduce((s, x) => s + x.colFim - x.col + 1, 0) : 0) });
+          i++;
+        } else {
+          atual.elementos.push({ tipo: "campo", modo: "mesma_celula", ref: a.ref, rotulo: mRot[1].trim(), prefixo: mRot[1].replace(/\s+$/, "") + " ", padrao: mRot[2].trim(), linha: ln.lin, largura: a.colFim - a.col + 1 });
+        }
+        continue;
+      }
+      if (!txt.trim()) {
+        if (a.larguraTotal && ln.altura >= 12 && (a.estilo.borda.e || a.estilo.borda.d)) atual.elementos.push({ tipo: "linha", ref: a.ref, linha: ln.lin, altura: ln.altura });
+        continue;
+      }
+      atual.elementos.push({ tipo: "fixo", ref: a.ref, texto: txt, linha: ln.lin });
+    }
+    anterior = ln;
+  }
+  etapas.push(atual);
+  etapas.forEach((e) => {
+    e.linhaFim = Math.max(e.linhaIni, ...e.elementos.map((x) => x.linha));
+    e.linhasTexto = e.elementos.filter((x) => x.tipo === "linha");
+    e.textual = e.tipo === "secao" && e.linhasTexto.length >= 2 && !e.elementos.some((x) => x.tipo === "campo");
+  });
+  return { etapas, estiloSecao, colunas: grade.larguras.reduce((s, w) => s + w, 0) };
+}
+
+/* ---------- Modelo ativo: o ANEXO 378 embutido ou uma revisão carregada ---------- */
+let rtModeloCache = null;
+async function rtModeloAtivo() {
+  if (rtModeloCache) return rtModeloCache;
+  let b64 = RT_MODELO_PADRAO_B64, nome = "ANEXO 378 - RELATÓRIO DE TESTE P&D.xlsx", embutido = true;
+  try {
+    const sub = JSON.parse(localStorage.getItem(LS_RT_MODELO) || "null");
+    if (sub && sub.b64) { b64 = sub.b64; nome = sub.nome; embutido = false; }
+  } catch (e) {}
+  const buffer = rtB64ParaBuffer(b64);
+  const lido = await rtLerModelo(buffer);
+  const abas = lido.abas.filter((a) => !a.oculta && a.estrutura && a.estrutura.etapas.some((e) => e.tipo === "secao"));
+  if (!abas.length) throw new Error("O modelo não tem nenhuma aba visível com seções reconhecíveis.");
+  const id = abas[0].estrutura.etapas[0].elementos.find((x) => x.tipo === "fixo" && /rev/i.test(x.texto));
+  rtModeloCache = { b64, buffer, nome, embutido, hash: await rtHash(buffer), revisao: id ? id.texto.replace(/\s+/g, " ").trim() : "", abas };
+  return rtModeloCache;
+}
+/* Carregar uma nova revisão do modelo (.xlsx). Só é aceita se for lida com
+   seções — e o usuário confere a estrutura antes de usá-la. */
+async function rtCarregarNovoModelo(file) {
+  const buffer = await file.arrayBuffer();
+  const lido = await rtLerModelo(buffer);
+  const abas = lido.abas.filter((a) => !a.oculta && a.estrutura && a.estrutura.etapas.some((e) => e.tipo === "secao"));
+  if (!abas.length) throw new Error("Não reconheci seções neste arquivo. Use o modelo de relatório no mesmo formato do Anexo 378 (.xlsx com área de impressão definida).");
+  return { b64: rtBufferParaB64(buffer), nome: file.name, abas };
+}
+const rtAbaDe = (modelo, nome) => modelo.abas.find((a) => a.nome === nome) || modelo.abas[0];
+const rtIngles = (aba) => /report/i.test(aba.nome) || /test\s+report/i.test((aba.estrutura.etapas[0].elementos.find((x) => x.tipo === "fixo" && /report|relat/i.test(x.texto)) || {}).texto || "");
+
+/* ---------- Rascunhos (localStorage, prefixo rinnai_ → Backup e Apagar dados) ---------- */
+function rtListarRascunhos() { return lsGet(LS_RT_RASCUNHOS, []); }
+/* Grava de verdade e devolve true/false — nunca anuncia "salvo" sem ter salvo. */
+function rtGravarRascunhos(lista) {
+  try { localStorage.setItem(LS_RT_RASCUNHOS, JSON.stringify(lista)); return true; }
+  catch (e) { return false; }
+}
+function rtNovoRascunho(modelo, aba) {
+  const campos = {}, checks = {}, secoes = {}, linhas = {};
+  aba.estrutura.etapas.forEach((e) => {
+    e.elementos.forEach((x) => {
+      if (x.tipo === "campo") campos[x.ref] = x.padrao || "";
+      if (x.tipo === "check") checks[x.ref] = !!x.padrao;
+      if (x.tipo === "linha" && !e.textual) linhas[x.ref] = "";
+    });
+    if (e.textual) secoes[e.id] = { texto: "", anterior: null, sugestao: null, revisada: false };
+  });
+  const agora = Date.now();
+  return { id: "rt_" + agora.toString(36) + Math.random().toString(36).slice(2, 6), criadoEm: agora, atualizadoEm: agora,
+    modeloHash: modelo.hash, modeloNome: modelo.nome, aba: aba.nome, campos, checks, secoes, linhas, revisadas: {}, revisaoGeral: null, aprovado: false, geradoEm: null };
+}
+const rtVazio = (v) => !String(v == null ? "" : v).trim();
+
+/* Situação de cada etapa: pendente / preenchida / revisada (+ sugestão aguardando decisão). */
+function rtSituacaoEtapa(r, etapa) {
+  let algum = false, todos = true;
+  etapa.elementos.forEach((x) => {
+    // Valores pré-impressos no modelo (ex.: "Laboratório P&D", nomes das
+    // assinaturas) não contam como preenchimento do usuário.
+    if (x.tipo === "campo") { const v = String(r.campos[x.ref] || "").trim(); if (v && v !== (x.padrao || "")) algum = true; if (!v && !x.complementoDe) todos = false; }
+    if (x.tipo === "check" && !!r.checks[x.ref] !== !!x.padrao) algum = true;
+    if (x.tipo === "linha" && !etapa.textual && !rtVazio(r.linhas[x.ref])) algum = true;
+  });
+  const sec = r.secoes[etapa.id];
+  if (etapa.textual) { if (!rtVazio(sec && sec.texto)) algum = true; else todos = false; }
+  const revisada = etapa.textual ? !!(sec && sec.revisada) : !!r.revisadas[etapa.id];
+  return { estado: !algum ? "pendente" : revisada ? "revisada" : "preenchida", incompleta: algum && !todos, sugestaoPendente: !!(sec && sec.sugestao) };
+}
+
+/* ---------- Distribuição do texto nas linhas do modelo ---------- */
+function rtCaracteresPorLinha(aba, colunas) {
+  // Largura de coluna do Excel ≈ nº de dígitos "0" da fonte padrão; texto
+  // corrido em Arial 10 cabe ~15 % a mais (medido renderizando o Anexo 378).
+  // 1,12 deixa margem para não cortar palavras.
+  return Math.max(10, Math.floor(colunas * 1.12));
+}
+function rtQuebrarTexto(texto, maxChars) {
+  const saida = [];
+  String(texto || "").replace(/\r/g, "").split("\n").map((p) => p.trim()).filter(Boolean).forEach((par) => {
+    let atual = "";
+    par.split(/\s+/).forEach((w) => {
+      if (!atual) atual = w;
+      else if ((atual + " " + w).length <= maxChars) atual += " " + w;
+      else { saida.push(atual); atual = w; }
+      while (atual.length > maxChars) { saida.push(atual.slice(0, maxChars)); atual = atual.slice(maxChars); }
+    });
+    if (atual) saida.push(atual);
+  });
+  return saida;
+}
+function rtLarguraColunas(aba, x) {
+  const ini = rtCol(x.ref) - aba.grade.area.c1;
+  return aba.grade.larguras.slice(ini, ini + (x.largura || 1)).reduce((s, w) => s + w, 0);
+}
+/* Plano de preenchimento de uma seção de texto: uma linha visual por linha do
+   modelo; se o texto passar das linhas reservadas, as linhas são repartidas
+   igualmente entre as linhas do modelo, que ficam mais altas (nenhuma linha é
+   inserida — a estrutura do modelo não muda). */
+function rtPlanoSecao(aba, etapa, texto) {
+  const linhas = etapa.linhasTexto;
+  const cap = rtCaracteresPorLinha(aba, aba.grade.larguras.reduce((s, w) => s + w, 0));
+  const visuais = rtQuebrarTexto(texto, cap);
+  const plano = linhas.map((l) => ({ ref: l.ref, linha: l.linha, texto: "", altura: null }));
+  if (!visuais.length) return { plano, excede: 0, capacidade: linhas.length, usadas: 0 };
+  if (visuais.length <= linhas.length) visuais.forEach((v, i) => { plano[i].texto = v; });
+  else {
+    const k = Math.ceil(visuais.length / linhas.length);
+    plano.forEach((p, i) => {
+      const fatia = visuais.slice(i * k, (i + 1) * k);
+      p.texto = fatia.join("\n");
+      if (fatia.length > 1) p.altura = Math.max(linhas[i].altura, Math.ceil(fatia.length * RT_ALT_LINHA_PT + 3));
+    });
+  }
+  return { plano, excede: Math.max(0, visuais.length - linhas.length), capacidade: linhas.length, usadas: visuais.length };
+}
+/* Valor final de cada campo, como vai para a célula. Campo vazio = célula
+   original intacta (o rótulo do modelo continua lá). */
+function rtTextoCampo(x, valor) {
+  const v = String(valor == null ? "" : valor).trim();
+  if (v === (x.padrao || "")) return null; // igual ao que o modelo já traz → célula original intacta
+  if (x.modo === "mesma_celula") return v ? x.prefixo + v : null;
+  if (x.modo === "celula_valor") return v || null;
+  return v; // assinatura: o usuário pode trocar ou apagar o nome pré-impresso
+}
+function rtCampoExcede(aba, x, valor) {
+  const txt = rtTextoCampo(x, valor);
+  if (!txt) return false;
+  const cap = rtCaracteresPorLinha(aba, rtLarguraColunas(aba, x));
+  return txt.length > cap;
+}
+
+/* ---------- Fidelidade da sugestão (checagem determinística) ---------- */
+const RT_UNIDADES = "°C|ºC|°F|ºF|K|kPa|MPa|hPa|Pa|mbar|bar|psi|mmca|mmH2O|mmHg|mm|cm|m³/h|m3/h|km|m²|m2|m³|m3|m|L/min|l/min|L/h|l/h|mL|ml|L|l|kg/h|kg|mg|g|kW|W|kVA|VA|kWh|Wh|V|mA|A|Hz|kHz|%|rpm|ppm|dB\\(A\\)|dBA|dB|Ω|ohm|kcal/h|kcal|kJ|J|N·m|Nm|N|min|s|h|ciclos|ciclo|cycles|cycle|un|pç|pcs";
+const RT_RE_NUM_UNID = new RegExp(`(?<![\\w.,])(\\d+(?:[.,]\\d+)*)\\s?(${RT_UNIDADES})(?![\\w²³])`, "g");
+function rtTokensCriticos(texto) {
+  let t = String(texto || "");
+  const tokens = [];
+  const tirar = (re, fmt) => { t = t.replace(re, (...m) => { tokens.push(fmt(m)); return " "; }); };
+  tirar(/\b\d{1,2}[\/.-]\d{1,2}[\/.-]\d{2,4}\b/g, (m) => "data:" + m[0]);
+  tirar(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, (m) => "hora:" + m[0]);
+  tirar(RT_RE_NUM_UNID, (m) => "valor:" + m[1] + " " + m[2].replace("º", "°"));
+  tirar(/\b(?=[A-Za-z0-9\-\/.]*\d)(?=[A-Za-z0-9\-\/.]*[A-Z])[A-Za-z0-9][A-Za-z0-9\-\/.]*[A-Za-z0-9]\b/g, (m) => "codigo:" + m[0]);
+  tirar(/(?<![\w])\d+(?:[.,]\d+)*(?![\w])/g, (m) => "numero:" + m[0]);
+  return tokens;
+}
+const RT_RE_CAUSA = /\b(devido|em raz[ãa]o|por causa|causad\w*|ocasionad\w*|provocad\w*|consequ[êe]nci\w*|porque|pois|portanto|conclui\w*|comprov\w*|demonstr\w*|evidenci\w*|garant\w*|due to|because|caused|therefore|proves?|demonstrat\w*|confirms?)\b/gi;
+const RT_RE_RESSALVA = /\b(possivelmente|provavelmente|aparentemente|talvez|suspeit\w*|hip[óo]tese\w*|pode ter|poderia\w*|parece\w*|aparenta\w*|estima-se|presum\w*|possibly|probably|apparently|perhaps|may have|might|seems?|suspect\w*|hypothes\w*)\b/gi;
+const RT_RE_NEGACAO = /\b(não|nao|nenhum|nenhuma|nunca|jamais|sem|not|no|never|none|without)\b/gi;
+function rtContar(re, t) { return (String(t || "").match(re) || []).map((x) => x.toLowerCase()); }
+function rtVerificarFidelidade(original, sugestao) {
+  const alertas = [];
+  const a = rtTokensCriticos(original), b = rtTokensCriticos(sugestao);
+  const resto = (x, y) => { const r = [...x]; y.forEach((k) => { const i = r.indexOf(k); if (i >= 0) r.splice(i, 1); }); return r; };
+  const sumiram = resto(a, b), novos = resto(b, a);
+  const bonito = (k) => k.replace(/^\w+:/, "");
+  if (sumiram.length) alertas.push({ nivel: "alto", tipo: "dado_alterado", texto: tr3(`Dados do seu texto que não aparecem iguais na sugestão: ${sumiram.map(bonito).join(", ")}`, `Data from your text not found unchanged in the suggestion: ${sumiram.map(bonito).join(", ")}`, `提案で変更/欠落したデータ: ${sumiram.map(bonito).join(", ")}`) });
+  if (novos.length) alertas.push({ nivel: "alto", tipo: "dado_novo", texto: tr3(`Dados que a sugestão acrescentou (não estão no seu texto): ${novos.map(bonito).join(", ")}`, `Data the suggestion added (not in your text): ${novos.map(bonito).join(", ")}`, `提案で追加されたデータ: ${novos.map(bonito).join(", ")}`) });
+  const causaNova = resto(rtContar(RT_RE_CAUSA, sugestao), rtContar(RT_RE_CAUSA, original));
+  if (causaNova.length) alertas.push({ nivel: "alto", tipo: "causa_nova", texto: tr3(`Possível causa, justificativa ou conclusão acrescentada (“${[...new Set(causaNova)].join("”, “")}”) — confira se isso foi informado por você.`, `Possible cause, justification or conclusion added (“${[...new Set(causaNova)].join("”, “")}”) — check you provided it.`, "原因/結論が追加された可能性") });
+  const ressA = rtContar(RT_RE_RESSALVA, original).length, ressB = rtContar(RT_RE_RESSALVA, sugestao).length;
+  if (ressA > ressB) alertas.push({ nivel: "medio", tipo: "ressalva", texto: tr3("A sugestão tem menos ressalvas (“possivelmente”, “aparentemente”…) que o seu texto — uma hipótese pode ter virado fato.", "The suggestion has fewer hedges than your text — a hypothesis may have become a fact.", "推測表現が減っています") });
+  const negA = rtContar(RT_RE_NEGACAO, original).length, negB = rtContar(RT_RE_NEGACAO, sugestao).length;
+  if (negA !== negB) alertas.push({ nivel: "medio", tipo: "negacao", texto: tr3(`O número de negações mudou (${negA} → ${negB}: “não”, “sem”, “nenhum”…) — confira se o sentido foi mantido.`, `The number of negations changed (${negA} → ${negB}) — check the meaning was kept.`, "否定表現の数が変わりました") });
+  const pa = String(original || "").split(/\s+/).filter(Boolean).length, pb = String(sugestao || "").split(/\s+/).filter(Boolean).length;
+  if (pa >= 15 && pb < pa * 0.6) alertas.push({ nivel: "medio", tipo: "reducao", texto: tr3(`A sugestão ficou bem menor (${pa} → ${pb} palavras) — confira se nenhuma informação foi perdida.`, `The suggestion is much shorter (${pa} → ${pb} words) — check no information was lost.`, "大幅に短くなりました") });
+  return alertas;
+}
+
+/* ---------- Aprimoramento de UMA seção (IA como revisora de redação) ---------- */
+function rtContextoOutras(r, aba, etapaAtual) {
+  const partes = [];
+  aba.estrutura.etapas.forEach((e) => {
+    if (e.id === etapaAtual.id) return;
+    if (e.textual && !rtVazio(r.secoes[e.id] && r.secoes[e.id].texto)) partes.push(`[${e.titulo}] ${String(r.secoes[e.id].texto).replace(/\s+/g, " ").slice(0, 600)}`);
+    e.elementos.filter((x) => x.tipo === "campo" && !rtVazio(r.campos[x.ref]) && e.tipo === "secao").forEach((x) => partes.push(`${x.rotulo} ${String(r.campos[x.ref]).slice(0, 200)}`));
+  });
+  return partes.join("\n") || "(nenhuma outra seção preenchida)";
+}
+async function rtAprimorarSecao(r, aba, etapa, opts) {
+  const sec = r.secoes[etapa.id];
+  const texto = String(sec.texto || "").trim();
+  const en = rtIngles(aba);
+  const sys = [
+    "[RELATORIO DE TESTE · APRIMORAR SECAO]",
+    `Você é revisor de redação técnica de um laboratório de P&D. Reescreva o TEXTO DO USUÁRIO da seção "${etapa.titulo}" de um relatório de teste para que fique claro, coeso, objetivo e profissional — e fácil de entender também por quem não domina todos os termos do ensaio.`,
+    "PODE: corrigir ortografia e gramática; reorganizar frases e parágrafos; eliminar repetições; trocar expressões confusas por outras mais claras; explicar de forma simples uma expressão pouco clara; ligar observações que já estão no texto.",
+    "NÃO PODE (regras invioláveis):",
+    "- inventar ou acrescentar resultados, medições, valores, unidades, condições de ensaio, procedimentos, equipamentos, causas, justificativas ou conclusões;",
+    "- alterar números, unidades, datas, horários, códigos, identificações de produto ou nomes de equipamentos: copie-os exatamente como estão (mesma grafia e separador decimal);",
+    "- transformar hipótese em fato (mantenha \"possivelmente\", \"aparentemente\" etc.) ou mudar negações;",
+    "- remover ressalvas, limitações, divergências ou resultados inesperados; encurtar retirando informação relevante; completar lacunas com suposições.",
+    "Se algo estiver ambíguo, incompleto ou aparentemente contraditório, NÃO escolha uma interpretação: mantenha o texto fiel e registre em \"ambiguidades\" com uma pergunta ao usuário. Possíveis inconsistências técnicas vão em \"observacoes_tecnicas\" — nunca corrija o conteúdo técnico em silêncio.",
+    "Se faltar informação para a seção ficar completa, liste de forma objetiva em \"faltando\" (ex.: \"temperatura ambiente durante o ensaio\") — sem inventar o valor.",
+    "O CONTEXTO DAS OUTRAS SEÇÕES serve só para manter os termos coerentes; não traga fatos de lá para esta seção.",
+    `Linguagem natural, sem rebuscamento. ${en ? "Escreva o texto aprimorado em INGLÊS (a versão do relatório é a aba em inglês)." : "Escreva em português do Brasil."} Texto puro, sem Markdown; parágrafos separados por uma linha.`,
+    'Responda SOMENTE com JSON: {"texto_aprimorado":"","alteracoes":[""],"faltando":[""],"ambiguidades":[{"trecho":"","pergunta":""}],"observacoes_tecnicas":[""]}',
+  ].join("\n");
+  const entrada = `SEÇÃO DO MODELO: ${etapa.titulo}\n\nTEXTO DO USUÁRIO (única fonte de fatos desta seção):\n${texto}\n\nCONTEXTO DAS OUTRAS SEÇÕES (só para coerência):\n${rtContextoOutras(r, aba, etapa)}`;
+  // pnChamarGemini (e não callGemini): a resposta é JSON e o stripLatex() do
+  // callGemini corrompe as aspas escapadas (\") dentro das strings.
+  const { texto: bruto } = await pnChamarGemini(sys, entrada, `Relatório · Aprimorar "${etapa.titulo}"`, { signal: opts && opts.signal, json: true, maxOutputTokens: 8192 });
+  const j = pnLerJson(bruto);
+  const novo = String(j.texto_aprimorado || "").replace(/\r/g, "").trim();
+  if (!novo) throw new Error(tr3("A IA não devolveu um texto aprimorado.", "The AI returned no improved text.", "改善文がありません。"));
+  return {
+    texto: novo, base: texto, criadaEm: Date.now(),
+    alteracoes: pnArr(j.alteracoes).map(pnStr).filter(Boolean),
+    faltando: pnArr(j.faltando).map(pnStr).filter(Boolean),
+    ambiguidades: pnArr(j.ambiguidades).map((a) => ({ trecho: pnStr(a && a.trecho), pergunta: pnStr(a && a.pergunta) })).filter((a) => a.trecho || a.pergunta),
+    observacoes: pnArr(j.observacoes_tecnicas).map(pnStr).filter(Boolean),
+    alertas: rtVerificarFidelidade(texto, novo),
+  };
+}
+
+/* ---------- Revisão geral (antes de gerar) ---------- */
+const rtData = (s) => { const m = String(s || "").match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/); if (!m) return null; const a = +m[3] < 100 ? 2000 + +m[3] : +m[3]; return new Date(a, +m[2] - 1, +m[1]).getTime(); };
+function rtChecagensDeterministicas(r, aba) {
+  const itens = [];
+  const etapas = aba.estrutura.etapas;
+  const add = (nivel, texto, etapaId) => itens.push({ nivel, texto, etapaId: etapaId || "" });
+  // Pendências (o modelo não define obrigatoriedade: tudo vazio aparece como pendente)
+  etapas.forEach((e) => {
+    if (e.textual && rtVazio(r.secoes[e.id] && r.secoes[e.id].texto)) add("pendente", tr3(`Seção "${e.titulo}" está vazia.`, `Section "${e.titulo}" is empty.`, `「${e.titulo}」が空です。`), e.id);
+    e.elementos.filter((x) => x.tipo === "campo" && rtVazio(r.campos[x.ref]) && !x.complementoDe).forEach((x) => add("pendente", tr3(`Campo "${x.rotulo}" está vazio.`, `Field "${x.rotulo}" is empty.`, `「${x.rotulo}」が空です。`), e.id));
+    if (e.textual && r.secoes[e.id] && r.secoes[e.id].sugestao) add("alerta", tr3(`Há uma sugestão da IA aguardando decisão em "${e.titulo}" — ela NÃO entra no relatório até ser aceita.`, `An AI suggestion awaits a decision in "${e.titulo}" — it is NOT included until accepted.`, `「${e.titulo}」に未判断の提案があります。`), e.id);
+    if (e.textual) { const p = rtPlanoSecao(aba, e, r.secoes[e.id].texto); if (p.excede) add("info", tr3(`"${e.titulo}" ocupa ~${p.usadas} linhas e o modelo reserva ${p.capacidade}: a última linha será ampliada no arquivo (nenhuma linha é inserida).`, `"${e.titulo}" takes ~${p.usadas} lines; the template has ${p.capacidade}: the last row will be taller.`, "最終行を拡大します"), e.id); }
+    e.elementos.filter((x) => x.tipo === "campo" && rtCampoExcede(aba, x, r.campos[x.ref])).forEach((x) => add("info", tr3(`O valor de "${x.rotulo}" pode não caber na célula do modelo — confira no arquivo gerado.`, `The value of "${x.rotulo}" may not fit the template cell.`, `「${x.rotulo}」がセルに収まらない可能性`), e.id));
+  });
+  // Caixas de seleção agrupadas como no modelo (cada linha de caixas, ou bloco após uma pergunta)
+  const fech = etapas.find((e) => e.tipo === "fechamento");
+  if (fech) {
+    const grupos = [];
+    let g = null, ultimaLinha = null;
+    fech.elementos.forEach((x) => {
+      if (x.tipo === "check") { if (!g || (ultimaLinha !== null && x.linha - ultimaLinha > 1)) { g = []; grupos.push(g); } g.push(x); ultimaLinha = x.linha; }
+      else if (x.tipo === "fixo") { g = null; ultimaLinha = null; }
+    });
+    grupos.forEach((grupo) => {
+      const marcados = grupo.filter((x) => r.checks[x.ref]);
+      const nomes = grupo.map((x) => x.rotulo).join(" / ");
+      if (!marcados.length) add("pendente", tr3(`Nenhuma opção marcada em: ${nomes}.`, `No option selected in: ${nomes}.`, `未選択: ${nomes}`), fech.id);
+      const na = marcados.filter((x) => /n[ãa]o aplic|not applicable/i.test(x.rotulo));
+      const exclusivo = grupo.some((x) => /aprovad|approved|reprovad/i.test(x.rotulo));
+      if (exclusivo && marcados.length > 1) add("alerta", tr3(`Mais de uma opção marcada em ${nomes}: ${marcados.map((x) => x.rotulo).join(" + ")}.`, `More than one option selected: ${marcados.map((x) => x.rotulo).join(" + ")}.`, "複数選択"), fech.id);
+      else if (na.length && marcados.length > 1) add("alerta", tr3(`"${na[0].rotulo}" marcado junto com outra opção (${marcados.filter((x) => !na.includes(x)).map((x) => x.rotulo).join(", ")}).`, `"${na[0].rotulo}" selected together with another option.`, "矛盾する選択"), fech.id);
+      grupo.forEach((x) => {
+        const comp = fech.elementos.find((c) => c.tipo === "campo" && c.complementoDe === x.ref);
+        if (comp && r.checks[x.ref] && rtVazio(r.campos[comp.ref])) add("pendente", tr3(`"${x.rotulo}" está marcado, mas a especificação está vazia.`, `"${x.rotulo}" is checked but the specification is empty.`, "指定が空です"), fech.id);
+      });
+    });
+  }
+  // Datas de início/término
+  const campos = etapas.flatMap((e) => e.elementos.filter((x) => x.tipo === "campo").map((x) => ({ x, e })));
+  const ini = campos.find(({ x }) => /in[íi]cio|start/i.test(x.rotulo)), fim = campos.find(({ x }) => /t[ée]rmino|end/i.test(x.rotulo));
+  if (ini && fim) {
+    const a = rtData(r.campos[ini.x.ref]), b = rtData(r.campos[fim.x.ref]);
+    if (a && b && b < a) add("alerta", tr3(`"${fim.x.rotulo}" (${r.campos[fim.x.ref]}) é anterior a "${ini.x.rotulo}" (${r.campos[ini.x.ref]}).`, `End date is before start date.`, "終了日が開始日より前です"), ini.e.id);
+    if ((r.campos[ini.x.ref] && !a) || (r.campos[fim.x.ref] && !b)) add("info", tr3("Alguma data não está no formato dd/mm/aaaa — não foi possível comparar início e término.", "A date is not in dd/mm/yyyy format — start/end not compared.", "日付形式を確認してください"), ini.e.id);
+  }
+  return itens;
+}
+function rtRelatorioComoTexto(r, aba) {
+  const L = [];
+  aba.estrutura.etapas.forEach((e) => {
+    L.push(`## ${e.titulo || (e.tipo === "inicio" ? "Cabeçalho" : "Fechamento (parecer, assinaturas e alteração de documentos)")}`);
+    e.elementos.forEach((x) => {
+      if (x.tipo === "campo") L.push(`${x.rotulo} ${r.campos[x.ref] || "(vazio)"}`);
+      if (x.tipo === "check") L.push(`[${r.checks[x.ref] ? "X" : " "}] ${x.rotulo}`);
+      if (x.tipo === "fixo" && e.tipo === "fechamento") L.push(x.texto);
+    });
+    if (e.textual) L.push(r.secoes[e.id].texto || "(vazio)");
+  });
+  return L.join("\n");
+}
+async function rtRevisaoGeralIA(r, aba, opts) {
+  const sys = [
+    "[RELATORIO DE TESTE · REVISAO GERAL]",
+    "Você revisa um relatório de teste de laboratório de P&D ANTES da emissão. NÃO reescreva nada e NÃO corrija dados: apenas aponte problemas para o usuário decidir.",
+    "Procure: contradições entre seções (ex.: resultados × conclusão × parecer marcado); informações duplicadas; termos usados de forma inconsistente (mesma coisa com nomes diferentes); conclusões sem base nos resultados descritos; dados que precisam de esclarecimento (unidade ausente, valor sem referência, condição vaga).",
+    "Não presuma fatos. Não aponte como problema algo que é só estilo.",
+    'Responda SOMENTE com JSON: {"problemas":[{"tipo":"contradicao|duplicidade|termo_inconsistente|conclusao_sem_base|esclarecimento","secoes":["título exato da seção"],"descricao":"","pergunta_ao_usuario":""}]}',
+    rtIngles(aba) ? "Write in English." : "Escreva em português do Brasil.",
+  ].join("\n");
+  const { texto: bruto } = await pnChamarGemini(sys, "RELATÓRIO (na ordem do modelo):\n\n" + rtRelatorioComoTexto(r, aba), "Relatório · Revisão geral", { signal: opts && opts.signal, json: true, maxOutputTokens: 8192 });
+  const j = pnLerJson(bruto);
+  const etapas = aba.estrutura.etapas;
+  const normal = (s) => pnNormalizar(s, false).texto.trim();
+  return pnArr(j.problemas).map((p) => {
+    const secs = pnArr(p.secoes).map(pnStr);
+    const alvo = etapas.find((e) => e.titulo && secs.some((s) => normal(s) === normal(e.titulo)))
+      || (secs.some((s) => /fechamento|parecer|assinatur|aprovad/i.test(s)) ? etapas.find((e) => e.tipo === "fechamento") : null);
+    return { tipo: pnStr(p.tipo) || "esclarecimento", secoes: secs, descricao: pnStr(p.descricao), pergunta: pnStr(p.pergunta_ao_usuario), etapaId: alvo ? alvo.id : "" };
+  }).filter((p) => p.descricao);
+}
+
+/* ---------- Geração do .xlsx a partir do arquivo ORIGINAL do modelo ---------- */
+function rtCelula(doc, ref) {
+  const lin = rtLin(ref), sd = doc.getElementsByTagNameNS(RT_NS, "sheetData")[0];
+  let row = rtFilhos(sd, "row").find((r) => +r.getAttribute("r") === lin);
+  if (!row) {
+    row = doc.createElementNS(RT_NS, "row"); row.setAttribute("r", String(lin));
+    const depois = rtFilhos(sd, "row").find((r) => +r.getAttribute("r") > lin);
+    sd.insertBefore(row, depois || null);
+  }
+  let c = rtFilhos(row, "c").find((x) => x.getAttribute("r") === ref);
+  if (!c) {
+    c = doc.createElementNS(RT_NS, "c"); c.setAttribute("r", ref);
+    const depois = rtFilhos(row, "c").find((x) => rtCol(x.getAttribute("r")) > rtCol(ref));
+    row.insertBefore(c, depois || null);
+  }
+  return { row, c };
+}
+function rtEscreverTexto(doc, ref, texto) {
+  const { c } = rtCelula(doc, ref);
+  while (c.firstChild) c.removeChild(c.firstChild);
+  c.setAttribute("t", "inlineStr");
+  const is = doc.createElementNS(RT_NS, "is"), t = doc.createElementNS(RT_NS, "t");
+  t.setAttributeNS("http://www.w3.org/XML/1998/namespace", "xml:space", "preserve");
+  t.textContent = texto;
+  is.appendChild(t); c.appendChild(is);
+}
+function rtEscreverBool(doc, ref, valor) {
+  const { c } = rtCelula(doc, ref);
+  while (c.firstChild) c.removeChild(c.firstChild);
+  c.setAttribute("t", "b");
+  const v = doc.createElementNS(RT_NS, "v"); v.textContent = valor ? "1" : "0"; c.appendChild(v);
+}
+function rtAlturaLinha(doc, lin, pt) {
+  const { row } = rtCelula(doc, rtRef(2, lin));
+  row.setAttribute("ht", String(pt)); row.setAttribute("customHeight", "1");
+}
+const RT_XML_DECL = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n';
+async function rtGerarXlsx(r) {
+  const modelo = await rtModeloAtivo();
+  const aba = rtAbaDe(modelo, r.aba);
+  const zip = await window.JSZip.loadAsync(modelo.buffer.slice(0));
+  const doc = rtXml(await zip.file(aba.caminho).async("string"));
+  aba.estrutura.etapas.forEach((e) => {
+    e.elementos.forEach((x) => {
+      if (x.tipo === "campo") {
+        const txt = rtTextoCampo(x, r.campos[x.ref]);
+        if (txt != null) {
+          rtEscreverTexto(doc, x.ref, txt);
+          const cap = rtCaracteresPorLinha(aba, rtLarguraColunas(aba, x));
+          const n = rtQuebrarTexto(txt, cap).length;
+          const ln = aba.grade.linhas.find((l) => l.lin === x.linha);
+          if (n > 1 && ln && ln.ancoras.length === 1) rtAlturaLinha(doc, x.linha, Math.max(ln.altura, Math.ceil(n * RT_ALT_LINHA_PT + 3)));
+        }
+      }
+      if (x.tipo === "check") rtEscreverBool(doc, x.ref, !!r.checks[x.ref]);
+      if (x.tipo === "linha" && !e.textual && !rtVazio(r.linhas[x.ref])) rtEscreverTexto(doc, x.ref, String(r.linhas[x.ref]).trim());
+    });
+    if (e.textual) {
+      const { plano } = rtPlanoSecao(aba, e, r.secoes[e.id].texto);
+      plano.forEach((p) => { if (p.texto) rtEscreverTexto(doc, p.ref, p.texto); if (p.altura) rtAlturaLinha(doc, p.linha, p.altura); });
+    }
+  });
+  zip.file(aba.caminho, RT_XML_DECL + new XMLSerializer().serializeToString(doc).replace(/^<\?xml[^>]*\?>\s*/, ""));
+  // Abre o arquivo na aba preenchida.
+  const wbDoc = rtXml(await zip.file("xl/workbook.xml").async("string"));
+  const view = rtFilhos(wbDoc, "workbookView")[0];
+  if (view) { view.setAttribute("activeTab", String(aba.indice)); view.removeAttribute("firstSheet"); }
+  zip.file("xl/workbook.xml", RT_XML_DECL + new XMLSerializer().serializeToString(wbDoc).replace(/^<\?xml[^>]*\?>\s*/, ""));
+  for (const outra of modelo.abas.concat([])) {
+    const f = zip.file(outra.caminho); if (!f) continue;
+    const d = outra.caminho === aba.caminho ? doc : rtXml(await f.async("string"));
+    const sv = rtFilhos(d, "sheetView")[0];
+    if (sv) { if (outra.caminho === aba.caminho) sv.setAttribute("tabSelected", "1"); else sv.removeAttribute("tabSelected"); }
+    zip.file(outra.caminho, RT_XML_DECL + new XMLSerializer().serializeToString(d).replace(/^<\?xml[^>]*\?>\s*/, ""));
+  }
+  const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", compression: "DEFLATE" });
+  return { blob, aba };
+}
+/* Confere o arquivo gerado: relê com o mesmo leitor do modelo e compara
+   títulos, rótulos, caixas e linhas — prova de que nada foi removido,
+   renomeado ou reordenado. */
+async function rtConferirEstrutura(blob, abaModelo) {
+  const lido = await rtLerModelo(await blob.arrayBuffer());
+  const gerada = lido.abas.find((a) => a.nome === abaModelo.nome);
+  if (!gerada || !gerada.estrutura) return { ok: false, detalhe: "aba não encontrada no arquivo gerado" };
+  const titulos = (aba) => aba.estrutura.etapas.filter((e) => e.titulo).map((e) => e.titulo);
+  const tm = titulos(abaModelo), tg = titulos(gerada);
+  if (tm.length !== tg.length || tm.some((t, i) => t !== tg[i])) return { ok: false, detalhe: `títulos/ordem das seções diferem: ${tg.join(" | ")}` };
+  // Cada rótulo, texto fixo e caixa do modelo continua na MESMA célula.
+  const doGerado = new Map();
+  gerada.estrutura.etapas.forEach((e) => e.elementos.forEach((x) => { doGerado.set(x.ref + "#" + x.tipo, x); if (x.refRotulo) doGerado.set(x.refRotulo + "#rotulo", x); }));
+  const problemas = [];
+  abaModelo.estrutura.etapas.forEach((e) => e.elementos.forEach((x) => {
+    if (x.tipo === "fixo") { const g = doGerado.get(x.ref + "#fixo"); if (!g || g.texto !== x.texto) problemas.push(`texto fixo ${x.ref}`); }
+    if (x.tipo === "check") { const g = doGerado.get(x.ref + "#check"); if (!g || g.rotulo !== x.rotulo) problemas.push(`caixa ${x.ref}`); }
+    if (x.tipo === "campo" && x.modo === "mesma_celula") { const g = doGerado.get(x.ref + "#campo"); if (!g || g.rotulo !== x.rotulo) problemas.push(`rótulo ${x.ref} (${x.rotulo})`); }
+    if (x.tipo === "campo" && x.modo === "substituir") { const g = doGerado.get(x.ref + "#campo"); if (!g || g.rotulo !== x.rotulo) problemas.push(`assinatura ${x.ref} (${x.rotulo})`); }
+  }));
+  return { ok: !problemas.length, secoes: tm.length, detalhe: problemas.join(", ") };
+}
+const rtNomeArquivo = (r, aba) => {
+  const campos = aba.estrutura.etapas.flatMap((e) => e.elementos.filter((x) => x.tipo === "campo"));
+  const num = campos.find((x) => /^N\s*[°º]/.test(x.rotulo)), teste = campos.find((x) => /^(teste|test):?$/i.test(x.rotulo));
+  const partes = ["Relatorio de Teste", num && r.campos[num.ref], teste && r.campos[teste.ref]].filter((x) => !rtVazio(x))
+    .map((x) => String(x).replace(/[\/\\:]+/g, "-"));
+  // Sem acentos: o nome precisa sobreviver a pastas de rede, SharePoint e e-mail.
+  return safeName(partes.join(" - ").normalize("NFD").replace(/[\u0300-\u036f]/g, "")).slice(0, 120) + ".xlsx";
+};
+
+/* ---------- Pré-visualização (réplica da área de impressão) ---------- */
+function rtPreviewHtml(r, aba) {
+  const g = aba.grade, totalW = g.larguras.reduce((s, w) => s + w, 0);
+  const porRef = {};
+  aba.estrutura.etapas.forEach((e) => {
+    e.elementos.forEach((x) => {
+      if (x.tipo === "campo") { const t = rtTextoCampo(x, r.campos[x.ref]); if (t != null) porRef[x.ref] = { texto: t }; }
+      if (x.tipo === "check") porRef[x.ref] = { check: !!r.checks[x.ref] };
+      if (x.tipo === "linha" && !e.textual && !rtVazio(r.linhas[x.ref])) porRef[x.ref] = { texto: String(r.linhas[x.ref]).trim() };
+    });
+    if (e.textual) rtPlanoSecao(aba, e, r.secoes[e.id].texto).plano.forEach((p) => { if (p.texto) porRef[p.ref] = { texto: p.texto, altura: p.altura }; });
+  });
+  const cols = g.larguras.map((w) => `<col style="width:${(w / totalW * 100).toFixed(2)}%">`).join("");
+  const linhas = g.linhas.map((ln) => {
+    let alt = ln.altura;
+    ln.ancoras.forEach((a) => { if (porRef[a.ref] && porRef[a.ref].altura) alt = porRef[a.ref].altura; });
+    const tds = ln.ancoras.map((a) => {
+      const est = a.estilo || {}, b = est.borda || {}, f = est.fonte || {};
+      const css = [
+        `border-left:${b.e ? "1px solid #000" : "0"}`, `border-right:${b.d ? "1px solid #000" : "0"}`, `border-top:${b.t ? "1px solid #000" : "0"}`, `border-bottom:${b.b ? "1px solid #000" : "0"}`,
+        est.preenchido ? "background:#d9d9d9" : "", f.negrito ? "font-weight:700" : "", `font-size:${(f.tamanho || 10) * 1.05}px`,
+        f.cor && /^FF?F?0000/i.test(f.cor.slice(-6).padStart(6, "0")) ? "color:#e00000" : "",
+        `text-align:${est.alinh === "center" ? "center" : est.alinh === "right" ? "right" : "left"}`, "padding:0 3px", "vertical-align:middle", "white-space:pre-wrap", "overflow:hidden",
+      ].filter(Boolean).join(";");
+      let conteudo = a.texto != null ? esc(a.texto) : "";
+      const v = porRef[a.ref];
+      if (v && v.texto != null) conteudo = esc(v.texto);
+      if (a.bool !== null) conteudo = (v ? v.check : a.bool) ? "☑" : "☐";
+      if (a.ref === rtRef(g.area.c1, g.area.l1) && aba.logo && !a.texto) conteudo = `<img src="${aba.logo}" alt="logo" style="height:${Math.round(ln.altura * 0.55)}px;margin:4px 6px">`;
+      return `<td colspan="${a.colFim - a.col + 1}" rowspan="1" style="${css}">${conteudo}</td>`;
+    }).join("");
+    return `<tr style="height:${Math.round(alt * 1.33)}px">${tds}</tr>`;
+  }).join("");
+  return `<table class="rt-preview" style="width:100%;table-layout:fixed;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;color:#000;background:#fff">${cols}${linhas}</table>`;
+}
+
+/* ---------- Interface (aba "Relatórios de Ensaio" do Laboratório P&D) ---------- */
+const RT = {
+  abas: el("labAbas"), vistaProc: el("labVistaProcedimentos"), vistaRel: el("labVistaRelatorios"),
+  selRascunho: el("rtSelRascunho"), selVersao: el("rtSelVersao"), novo: el("btnRtNovo"), excluir: el("btnRtExcluir"),
+  salvo: el("rtSalvoStatus"), modeloInfo: el("rtModeloInfo"), modeloInput: el("rtModeloInput"),
+  vazio: el("rtVazio"), editor: el("rtEditor"), etapas: el("rtEtapas"), painel: el("rtPainel"),
+  progTxt: el("rtProgressoTxt"), progBarra: el("rtProgressoBarra"),
+  modal: el("rtModeloModal"), modalTitulo: el("rtModeloModalTitulo"), modalCorpo: el("rtModeloModalCorpo"), modalAcoes: el("rtModeloModalAcoes"),
+};
+const rtEstado = { modelo: null, aba: null, r: null, etapa: 0, timer: null, falhouSalvar: false, carregando: false, iaEmCurso: {}, revisaoIA: null, mostrarPrevia: false, novoModelo: null };
+let labAbaAtiva = "procedimentos";
+
+function rtEtapasAssistente() { return rtEstado.aba ? rtEstado.aba.estrutura.etapas : []; }
+const rtNomeEtapa = (e) => e.titulo || (e.tipo === "inicio"
+  ? tr3("Identificação do relatório", "Report identification", "報告書の識別")
+  : tr3("Parecer, assinaturas e documentos", "Verdict, signatures and documents", "判定・署名・文書"));
+const rtEtapaSemTitulo = (e) => !e.titulo;
+
+/* ----- Abas do Laboratório ----- */
+function rtAtualizarTituloLab() {
+  const h1 = el("pageTitle"), crumb = document.querySelector('[data-i18n="crumb.current"]');
+  const rel = labAbaAtiva === "relatorios";
+  if (E.headerTitle && activeSector) E.headerTitle.textContent = `${rel ? t("rt.abaRel") : t("header.title")} - ${t(`hub.sector.${activeSector}`)}`;
+  if (E.btnStandard) E.btnStandard.style.display = rel ? "none" : ""; // D04116 é o padrão de PROCEDIMENTOS
+  if (h1) h1.textContent = labAbaAtiva === "relatorios" ? t("rt.titulo") : t("page.title");
+  if (crumb) crumb.textContent = labAbaAtiva === "relatorios" ? t("rt.abaRel") : t("crumb.current");
+}
+async function rtMostrarAbaLab(aba) {
+  if (aba === labAbaAtiva) return;
+  if (labAbaAtiva === "relatorios" && rtEstado.falhouSalvar && !confirm(tr3("O último salvamento do rascunho FALHOU (armazenamento cheio). Se sair agora, as últimas alterações podem ser perdidas. Sair mesmo assim?", "The last draft save FAILED (storage full). Leaving now may lose the latest changes. Leave anyway?", "最後の保存に失敗しました。移動しますか？"))) return;
+  labAbaAtiva = aba;
+  document.querySelectorAll("[data-lab-aba]").forEach((b) => b.classList.toggle("is-active", b.getAttribute("data-lab-aba") === aba));
+  RT.vistaProc.classList.toggle("hidden", aba !== "procedimentos");
+  RT.vistaRel.classList.toggle("hidden", aba !== "relatorios");
+  rtAtualizarTituloLab();
+  if (aba === "relatorios") await rtIniciar();
+}
+
+/* ----- Carga do modelo e dos rascunhos ----- */
+async function rtIniciar() {
+  try {
+    rtEstado.modelo = await rtModeloAtivo();
+  } catch (err) {
+    RT.modeloInfo.innerHTML = `<span class="text-rinnai-red">⛔ ${esc(tr3("Não foi possível ler o modelo de relatório: ", "Could not read the report template: ", "テンプレートを読めません: ") + (err.message || err))}</span>`;
+    return;
+  }
+  const m = rtEstado.modelo;
+  RT.selVersao.innerHTML = m.abas.map((a) => `<option value="${esc(a.nome)}">${esc(a.nome)}${rtIngles(a) ? " (EN)" : " (PT)"}</option>`).join("");
+  RT.modeloInfo.innerHTML = `<span>📄 ${esc(tr3("Modelo:", "Template:", "テンプレート:"))} <b class="text-rinnai-g1">${esc(m.nome.replace(/\.xlsx$/i, ""))}</b>${m.revisao ? ` · ${esc(m.revisao)}` : ""} ${m.embutido ? `<span class="text-rinnai-g3">(${esc(tr3("modelo padrão do laboratório", "laboratory standard template", "標準テンプレート"))})</span>` : `<span class="text-amber-700">(${esc(tr3("revisão carregada neste navegador", "revision loaded in this browser", "読み込まれた改訂版"))})</span>`}</span>
+    <button type="button" data-rt-ver-modelo class="btn-ghost !px-2.5 !py-1 !text-[11.5px]">${esc(tr3("Ver estrutura do modelo", "View template structure", "構造を表示"))}</button>
+    <button type="button" data-rt-carregar-modelo class="btn-ghost !px-2.5 !py-1 !text-[11.5px]">${esc(tr3("Carregar nova revisão (.xlsx)", "Load new revision (.xlsx)", "新しい改訂版を読み込む"))}</button>`;
+  rtRenderListaRascunhos();
+}
+function rtRenderListaRascunhos(selecionar) {
+  const lista = rtListarRascunhos().sort((a, b) => (b.atualizadoEm || 0) - (a.atualizadoEm || 0));
+  const atual = selecionar || (rtEstado.r && rtEstado.r.id) || "";
+  RT.selRascunho.innerHTML = `<option value="">${esc(lista.length ? tr3("— escolha um rascunho para continuar —", "— choose a draft to continue —", "— 下書きを選択 —") : tr3("— nenhum rascunho salvo —", "— no saved drafts —", "— 下書きなし —"))}</option>`
+    + lista.map((r) => `<option value="${esc(r.id)}">${esc(rtTituloRascunho(r))} · ${esc(fmtDate(r.atualizadoEm))}${r.geradoEm ? " · ✓ " + esc(tr3("gerado", "generated", "生成済み")) : ""}</option>`).join("");
+  RT.selRascunho.value = lista.some((r) => r.id === atual) ? atual : "";
+  if (RT.selRascunho.value && (!rtEstado.r || rtEstado.r.id !== RT.selRascunho.value)) rtAbrirRascunho(RT.selRascunho.value);
+  if (!RT.selRascunho.value) { rtEstado.r = null; RT.editor.classList.add("hidden"); RT.vazio.classList.remove("hidden"); RT.excluir.disabled = true; }
+}
+function rtTituloRascunho(r) {
+  const m = rtEstado.modelo, aba = m && rtAbaDe(m, r.aba);
+  const campos = aba ? aba.estrutura.etapas.flatMap((e) => e.elementos.filter((x) => x.tipo === "campo")) : [];
+  const num = campos.find((x) => /^N\s*[°º]/.test(x.rotulo)), teste = campos.find((x) => /^(teste|test):?$/i.test(x.rotulo));
+  const partes = [num && r.campos[num.ref], teste && r.campos[teste.ref]].filter((x) => !rtVazio(x));
+  return (partes.join(" — ") || tr3("Relatório sem identificação", "Unidentified report", "未識別の報告書")) + ` (${r.aba})`;
+}
+function rtAbrirRascunho(id) {
+  const r = rtListarRascunhos().find((x) => x.id === id);
+  if (!r) return;
+  rtEstado.r = r; rtEstado.etapa = 0; rtEstado.revisaoIA = null; rtEstado.mostrarPrevia = false;
+  rtEstado.aba = rtAbaDe(rtEstado.modelo, r.aba);
+  if (r.modeloHash !== rtEstado.modelo.hash) toast(tr3("Atenção: este rascunho foi iniciado com outra revisão do modelo. Confira a estrutura antes de gerar.", "Warning: this draft was started with another template revision.", "別の改訂版で作成された下書きです。"));
+  RT.vazio.classList.add("hidden"); RT.editor.classList.remove("hidden"); RT.excluir.disabled = false;
+  rtEstado.falhouSalvar = false;
+  RT.salvo.textContent = tr3("Rascunho salvo neste navegador · ", "Draft saved in this browser · ", "保存済み · ") + fmtDate(r.atualizadoEm);
+  rtRender();
+}
+function rtNovo() {
+  if (!rtEstado.modelo) return;
+  const aba = rtAbaDe(rtEstado.modelo, RT.selVersao.value);
+  const r = rtNovoRascunho(rtEstado.modelo, aba);
+  const lista = rtListarRascunhos(); lista.push(r);
+  if (!rtGravarRascunhos(lista)) { toast(tr3("O rascunho NÃO foi criado: falta espaço no armazenamento do navegador.", "The draft was NOT created: browser storage is full.", "作成できませんでした: 容量不足")); return; }
+  rtRenderListaRascunhos(r.id);
+  toast(tr3(`Novo relatório criado com o modelo "${aba.nome}".`, `New report created with template "${aba.nome}".`, "新しい報告書を作成しました。"));
+}
+function rtExcluir() {
+  const r = rtEstado.r;
+  if (!r || !confirm(tr3(`Excluir o rascunho "${rtTituloRascunho(r)}"? Esta ação não pode ser desfeita (exporte um backup antes, se precisar).`, `Delete draft "${rtTituloRascunho(r)}"? This cannot be undone.`, "下書きを削除しますか？"))) return;
+  if (!rtGravarRascunhos(rtListarRascunhos().filter((x) => x.id !== r.id))) { toast(tr3("Não foi possível excluir (falha ao gravar).", "Could not delete (write failed).", "削除できません")); return; }
+  rtEstado.r = null;
+  rtRenderListaRascunhos("");
+}
+
+/* ----- Salvamento automático (com estado honesto) ----- */
+function rtAlterado(reRender) {
+  const r = rtEstado.r;
+  if (!r) return;
+  r.atualizadoEm = Date.now();
+  r.aprovado = false; // qualquer alteração exige nova aprovação antes de gerar
+  RT.salvo.textContent = tr3("Alterações não salvas…", "Unsaved changes…", "未保存の変更…");
+  clearTimeout(rtEstado.timer);
+  rtEstado.timer = setTimeout(rtSalvarAgora, 500);
+  rtRenderEtapas();
+  const etapaAtual = rtEtapasAssistente()[rtEstado.etapa], badge = el("rtBadgeEtapa");
+  if (badge && etapaAtual) badge.innerHTML = rtBadgeEstado(rtSituacaoEtapa(r, etapaAtual));
+  if (reRender) rtRenderPainel();
+}
+function rtSalvarAgora() {
+  clearTimeout(rtEstado.timer); rtEstado.timer = null;
+  const r = rtEstado.r;
+  if (!r) return true;
+  const lista = rtListarRascunhos().filter((x) => x.id !== r.id);
+  lista.push(r);
+  const ok = rtGravarRascunhos(lista);
+  rtEstado.falhouSalvar = !ok;
+  const opt = Array.from(RT.selRascunho.options).find((o) => o.value === r.id);
+  if (opt) opt.textContent = `${rtTituloRascunho(r)} · ${fmtDate(r.atualizadoEm)}${r.geradoEm ? " · ✓ " + tr3("gerado", "generated", "生成済み") : ""}`;
+  RT.salvo.innerHTML = ok
+    ? esc(tr3("✓ Salvo neste navegador às ", "✓ Saved in this browser at ", "✓ 保存 ") + new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }))
+    : `<span class="font-semibold text-rinnai-red">⚠ ${esc(tr3("NÃO salvo: falta espaço no armazenamento do navegador. Exporte um backup e libere espaço; não feche a página.", "NOT saved: browser storage is full. Export a backup and free space; do not close the page.", "保存されていません: 容量不足"))}</span>`;
+  return ok;
+}
+window.addEventListener("beforeunload", (e) => {
+  if (rtEstado.timer) rtSalvarAgora();
+  if (rtEstado.falhouSalvar) { e.preventDefault(); e.returnValue = ""; }
+});
+
+/* ----- Lista de etapas + progresso ----- */
+function rtRenderEtapas() {
+  const r = rtEstado.r, etapas = rtEtapasAssistente();
+  if (!r) return;
+  let preenchidas = 0, revisadas = 0;
+  const itens = etapas.map((e, i) => {
+    const s = rtSituacaoEtapa(r, e);
+    if (s.estado !== "pendente") preenchidas++;
+    if (s.estado === "revisada") revisadas++;
+    const cor = s.estado === "revisada" ? "bg-green-600" : s.estado === "preenchida" ? "bg-amber-500" : "bg-rinnai-g3";
+    return `<li><button type="button" data-rt-etapa="${i}" class="flex w-full items-center gap-2 rounded-rinnai px-2.5 py-1.5 text-left text-[12.5px] transition hover:bg-rinnai-g4 ${i === rtEstado.etapa ? "bg-[rgb(var(--r-redsoft))] font-semibold text-rinnai-red" : "text-rinnai-g1"}">
+      <span class="h-2.5 w-2.5 shrink-0 rounded-full ${cor}" title="${esc(s.estado)}"></span>
+      <span class="min-w-0 flex-1 truncate ${rtEtapaSemTitulo(e) ? "italic" : ""}">${esc(rtNomeEtapa(e))}</span>
+      ${s.sugestaoPendente ? `<span class="h-2 w-2 shrink-0 rounded-full bg-violet-600" title="${esc(tr3("sugestão aguardando decisão", "suggestion awaiting decision", "提案待ち"))}"></span>` : ""}
+    </button></li>`;
+  });
+  const iFinal = etapas.length;
+  itens.push(`<li class="mt-2 border-t border-rinnai-line pt-2"><button type="button" data-rt-etapa="${iFinal}" class="flex w-full items-center gap-2 rounded-rinnai px-2.5 py-1.5 text-left text-[12.5px] font-semibold transition hover:bg-rinnai-g4 ${rtEstado.etapa === iFinal ? "bg-[rgb(var(--r-redsoft))] text-rinnai-red" : "text-rinnai-g1"}">
+    <span class="shrink-0">✓</span><span class="flex-1">${esc(tr3("Revisão final e geração", "Final review and generation", "最終確認と生成"))}</span></button></li>`);
+  RT.etapas.innerHTML = itens.join("");
+  RT.progTxt.textContent = tr3(`${preenchidas}/${etapas.length} preenchidas · ${revisadas} revisadas`, `${preenchidas}/${etapas.length} filled · ${revisadas} reviewed`, `${preenchidas}/${etapas.length}`);
+  RT.progBarra.style.width = `${Math.round(preenchidas / Math.max(1, etapas.length) * 100)}%`;
+}
+function rtRender() { rtRenderEtapas(); rtRenderPainel(); }
+function rtIrPara(i) {
+  if (rtEstado.timer) rtSalvarAgora();
+  rtEstado.etapa = Math.max(0, Math.min(rtEtapasAssistente().length, i));
+  rtRender();
+  RT.painel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/* ----- Painel de uma etapa ----- */
+function rtBadgeEstado(s) {
+  const mapa = { pendente: ["info", tr3("pendente", "pending", "未入力")], preenchida: ["alerta", tr3("preenchida", "filled", "入力済み")], revisada: ["ok", tr3("revisada", "reviewed", "確認済み")] };
+  const [tipo, txt] = mapa[s.estado];
+  return pnBadge(tipo, txt) + (s.sugestaoPendente ? " " + `<span class="inline-flex items-center rounded-sm bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-700 dark:bg-violet-900/40 dark:text-violet-200">${esc(tr3("sugestão aguardando", "suggestion pending", "提案待ち"))}</span>` : "");
+}
+function rtRenderPainel() {
+  const r = rtEstado.r, etapas = rtEtapasAssistente();
+  if (!r) return;
+  if (rtEstado.etapa >= etapas.length) { rtRenderRevisaoFinal(); return; }
+  const e = etapas[rtEstado.etapa], aba = rtEstado.aba, s = rtSituacaoEtapa(r, e);
+  const h = [];
+  h.push(`<div class="mb-4 flex flex-wrap items-start justify-between gap-2">
+    <div><p class="text-[11px] font-bold uppercase tracking-wider text-rinnai-g3">${esc(tr3(`Etapa ${rtEstado.etapa + 1} de ${etapas.length}`, `Step ${rtEstado.etapa + 1} of ${etapas.length}`, `${rtEstado.etapa + 1}/${etapas.length}`))} · ${esc(tr3(`linhas ${e.linhaIni}–${e.linhaFim} do modelo`, `template rows ${e.linhaIni}–${e.linhaFim}`, `行 ${e.linhaIni}–${e.linhaFim}`))}</p>
+    <h2 class="mt-1 text-[19px] font-bold text-rinnai-g1">${esc(rtNomeEtapa(e))}</h2>
+    ${rtEtapaSemTitulo(e) ? `<p class="text-[11px] text-rinnai-g3">${esc(tr3("Este bloco não tem título no modelo — o nome acima é só da tela e não aparece no relatório.", "This block has no title in the template — the name above is only for this screen.", "この名前は画面表示のみです。"))}</p>` : ""}</div>
+    <div id="rtBadgeEtapa" class="flex items-center gap-1.5">${rtBadgeEstado(s)}</div></div>`);
+  // Elementos na ordem do modelo
+  const blocos = [];
+  e.elementos.forEach((x) => {
+    if (x.tipo === "fixo") blocos.push({ largo: true, html: `<p class="rounded-rinnai bg-rinnai-g5 px-3 py-1.5 text-[12px] text-rinnai-g2" title="${esc(tr3("Texto fixo do modelo (não editável)", "Fixed template text (not editable)", "固定テキスト"))}">${esc(x.texto)}</p>` });
+    if (x.tipo === "campo") {
+      const excede = rtCampoExcede(aba, x, r.campos[x.ref]);
+      blocos.push({ largo: (x.largura || 1) >= 6, html: `<label class="block"><span class="mb-1 block text-[12.5px] font-semibold text-rinnai-g1">${esc(x.rotulo)}${x.modo === "substituir" ? ` <span class="font-normal text-rinnai-g3">(${esc(tr3("assinatura", "signature", "署名"))})</span>` : ""}</span>
+        <input type="text" data-rt-campo="${esc(x.ref)}" value="${esc(r.campos[x.ref] || "")}" class="field !py-2 !text-[13px]" autocomplete="off" />
+        <span data-rt-aviso-campo="${esc(x.ref)}" class="mt-0.5 block text-[11px] text-amber-700 dark:text-amber-300 ${excede ? "" : "hidden"}">${esc(tr3("O texto pode não caber na célula do modelo — confira no arquivo gerado.", "The text may not fit the template cell.", "セルに収まらない可能性"))}</span></label>` });
+    }
+    if (x.tipo === "check") blocos.push({ largo: false, html: `<label class="flex items-center gap-2 text-[13px] text-rinnai-g1"><input type="checkbox" data-rt-check="${esc(x.ref)}" ${r.checks[x.ref] ? "checked" : ""} class="h-4 w-4 accent-[#cf000e]" /> ${esc(x.rotulo)}</label>` });
+    if (x.tipo === "linha" && !e.textual) blocos.push({ largo: true, html: `<label class="block"><span class="mb-1 block text-[12px] text-rinnai-g2">${esc(tr3(`Linha livre do modelo (linha ${x.linha}) — opcional`, `Free template row (row ${x.linha}) — optional`, `自由行 ${x.linha}`))}</span>
+      <input type="text" data-rt-linha="${esc(x.ref)}" value="${esc(r.linhas[x.ref] || "")}" class="field !py-2 !text-[13px]" autocomplete="off" /></label>` });
+  });
+  if (blocos.length) h.push(`<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">${blocos.map((b) => `<div class="${b.largo ? "sm:col-span-2" : ""}">${b.html}</div>`).join("")}</div>`);
+  if (e.textual) h.push(rtHtmlSecaoTexto(r, aba, e));
+  // Rodapé
+  h.push(`<div class="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-rinnai-line pt-4">
+    <button type="button" data-rt-nav="-1" class="btn-ghost !px-4 !py-2 !text-[13px]" ${rtEstado.etapa === 0 ? "disabled" : ""}>← ${esc(tr3("Anterior", "Previous", "前へ"))}</button>
+    ${!e.textual ? `<label class="flex items-center gap-2 text-[12.5px] text-rinnai-g1"><input type="checkbox" data-rt-revisada-etapa="${esc(e.id)}" ${r.revisadas[e.id] ? "checked" : ""} class="h-4 w-4 accent-[#cf000e]" /> ${esc(tr3("Conferi esta etapa (marcar como revisada)", "I checked this step (mark as reviewed)", "確認済みにする"))}</label>` : ""}
+    <button type="button" data-rt-nav="1" class="btn-primary !px-4 !py-2 !text-[13px]">${esc(rtEstado.etapa === etapas.length - 1 ? tr3("Ir para a revisão final", "Go to final review", "最終確認へ") : tr3("Próxima", "Next", "次へ"))} →</button></div>`);
+  RT.painel.innerHTML = h.join("");
+}
+function rtHtmlSecaoTexto(r, aba, e) {
+  const sec = r.secoes[e.id];
+  const plano = rtPlanoSecao(aba, e, sec.texto);
+  const cap = rtCaracteresPorLinha(aba, aba.grade.larguras.reduce((s2, w) => s2 + w, 0));
+  const emCurso = rtEstado.iaEmCurso[r.id + e.id];
+  const h = [];
+  h.push(`<div class="mt-2"><div class="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+      <label for="rtTexto" class="text-[13px] font-semibold text-rinnai-g1">${esc(tr3("Seu texto para esta seção", "Your text for this section", "このセクションの本文"))}</label>
+      <span id="rtCapacidade" class="text-[11px] ${plano.excede ? "text-amber-700 dark:text-amber-300" : "text-rinnai-g3"}">${esc(rtTextoCapacidade(plano, cap))}</span></div>
+    <textarea id="rtTexto" data-rt-texto="${esc(e.id)}" rows="9" class="field resize-y leading-relaxed" placeholder="${esc(tr3("Escreva livremente o que foi feito e observado — pode ser em tópicos, com erros ou frases incompletas. Você revisa a redação depois.", "Write freely what was done and observed — bullets, typos or incomplete sentences are fine.", "自由に記入してください。"))}">${esc(sec.texto || "")}</textarea>
+    <div class="mt-2 flex flex-wrap items-center gap-2">
+      <button type="button" data-rt-aprimorar="${esc(e.id)}" class="btn-primary !px-4 !py-2 !text-[12.5px]" ${emCurso || rtVazio(sec.texto) ? "disabled" : ""}>${emCurso ? tradutorSpinnerHtml(tr3("Aprimorando…", "Improving…", "改善中…")) : esc(tr3("✨ Aprimorar redação com IA", "✨ Improve wording with AI", "✨ AI で文章を改善"))}</button>
+      <label class="flex items-center gap-2 text-[12.5px] text-rinnai-g1"><input type="checkbox" data-rt-revisada="${esc(e.id)}" ${sec.revisada ? "checked" : ""} ${rtVazio(sec.texto) ? "disabled" : ""} class="h-4 w-4 accent-[#cf000e]" /> ${esc(tr3("Texto revisado por mim", "Text reviewed by me", "自分で確認済み"))}</label>
+      ${sec.anterior != null ? `<button type="button" data-rt-desfazer="${esc(e.id)}" class="btn-ghost !px-3 !py-1.5 !text-[12px]">${esc(tr3("↶ Voltar ao meu texto anterior", "↶ Restore my previous text", "↶ 元に戻す"))}</button>` : ""}
+      <span class="text-[11px] text-rinnai-g3">${esc(tr3("Seções vazias ficam como pendentes — a IA nunca preenche sozinha.", "Empty sections stay pending — the AI never fills them.", "空欄は未入力のままです。"))}</span>
+    </div></div>`);
+  if (sec.sugestao) h.push(rtHtmlSugestao(sec, e));
+  return h.join("");
+}
+function rtTextoCapacidade(plano, cap) {
+  return plano.excede
+    ? tr3(`~${plano.usadas} linhas · o modelo reserva ${plano.capacidade}: as linhas ficarão mais altas no arquivo (nenhuma linha é inserida)`, `~${plano.usadas} lines · template has ${plano.capacidade}: rows will be taller`, `約 ${plano.usadas} 行 / ${plano.capacidade}`)
+    : tr3(`~${plano.usadas} de ${plano.capacidade} linhas do modelo (~${cap} caracteres por linha)`, `~${plano.usadas} of ${plano.capacidade} template rows (~${cap} characters per row)`, `約 ${plano.usadas}/${plano.capacidade} 行`);
+}
+function rtHtmlSugestao(sec, e) {
+  const sg = sec.sugestao;
+  const mudouBase = String(sg.base || "").trim() !== String(sec.texto || "").trim();
+  const lista = (titulo, itens, cls) => itens.length ? `<div class="mt-3"><p class="text-[12px] font-bold text-rinnai-g1">${esc(titulo)}</p><ul class="mt-1 list-disc space-y-0.5 pl-5 text-[12.5px] ${cls || "text-rinnai-g2"}">${itens.map((x) => `<li>${x}</li>`).join("")}</ul></div>` : "";
+  const altos = sg.alertas.filter((a) => a.nivel === "alto");
+  return `<div class="mt-5 rounded-rinnai-lg border-2 border-violet-300 p-4 dark:border-violet-800" id="rtSugestao">
+    <div class="flex flex-wrap items-center justify-between gap-2"><p class="text-[13px] font-bold text-violet-800 dark:text-violet-200">${esc(tr3("Sugestão da IA — compare antes de decidir", "AI suggestion — compare before deciding", "AI の提案 — 比較してから判断"))}</p>
+      <span class="text-[11px] text-rinnai-g3">${esc(tr3("Seu texto continua valendo até você aceitar.", "Your text stays until you accept.", "承認するまで元の文章が有効です。"))}</span></div>
+    ${mudouBase ? `<p class="mt-2 rounded-rinnai bg-amber-50 px-3 py-1.5 text-[12px] text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">⚠ ${esc(tr3("Você alterou o seu texto depois de pedir esta sugestão. Ela foi feita sobre a versão anterior (à esquerda).", "You changed your text after requesting this suggestion; it is based on the previous version (left).", "提案後に本文が変更されました。"))}</p>` : ""}
+    ${sg.alertas.length ? `<div class="mt-3 space-y-1">${sg.alertas.map((a) => `<p class="rounded-rinnai px-3 py-1.5 text-[12px] ${a.nivel === "alto" ? "bg-red-50 text-red-800 dark:bg-red-900/30 dark:text-red-200" : "bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200"}">${a.nivel === "alto" ? "⛔" : "⚠"} ${esc(a.texto)}</p>`).join("")}</div>` : `<p class="mt-2 text-[12px] text-green-700 dark:text-green-300">✓ ${esc(tr3("Checagem automática: números, unidades, datas e códigos do seu texto foram mantidos; nenhum dado novo foi acrescentado.", "Automatic check: numbers, units, dates and codes kept; no new data added.", "自動チェック: データは保持されています。"))}</p>`}
+    <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div><p class="mb-1 text-[11.5px] font-bold uppercase tracking-wider text-rinnai-g2">${esc(tr3("Seu texto (original)", "Your text (original)", "元の文章"))}</p>
+        <pre class="max-h-80 min-h-[10rem] overflow-auto whitespace-pre-wrap rounded-rinnai border border-rinnai-line bg-rinnai-g5 p-3 font-sans text-[13px] leading-relaxed text-rinnai-g1">${esc(sg.base)}</pre></div>
+      <div><p class="mb-1 text-[11.5px] font-bold uppercase tracking-wider text-rinnai-g2">${esc(tr3("Sugestão (você pode editar)", "Suggestion (you can edit)", "提案(編集可)"))}</p>
+        <textarea id="rtSugTexto" data-rt-sugtexto="${esc(e.id)}" rows="10" class="field min-h-[10rem] resize-y !text-[13px] leading-relaxed">${esc(sg.texto)}</textarea></div>
+    </div>
+    ${lista(tr3("O que a IA mudou", "What the AI changed", "変更点"), sg.alteracoes.map(esc))}
+    ${lista(tr3("Informações que faltam (a IA não inventou — complete se tiver os dados)", "Missing information (not invented — add it if you have the data)", "不足情報"), sg.faltando.map(esc), "text-amber-800 dark:text-amber-200")}
+    ${lista(tr3("Ambiguidades — precisam do seu esclarecimento", "Ambiguities — need your clarification", "曖昧な点"), sg.ambiguidades.map((a) => `${a.trecho ? `“${esc(a.trecho)}” — ` : ""}${esc(a.pergunta)}`), "text-amber-800 dark:text-amber-200")}
+    ${lista(tr3("Possíveis inconsistências técnicas (apenas apontadas, NÃO corrigidas)", "Possible technical inconsistencies (only flagged, NOT corrected)", "技術的な不整合の可能性"), sg.observacoes.map(esc))}
+    <div class="mt-4 flex flex-wrap gap-2">
+      <button type="button" data-rt-aceitar="${esc(e.id)}" class="btn-primary !px-4 !py-2 !text-[12.5px]">${esc(tr3("Aceitar sugestão", "Accept suggestion", "提案を承認"))}${altos.length ? " ⚠" : ""}</button>
+      <button type="button" data-rt-rejeitar="${esc(e.id)}" class="btn-ghost !px-4 !py-2 !text-[12.5px]">${esc(tr3("Rejeitar e manter meu texto", "Reject and keep my text", "却下して元の文章を保持"))}</button>
+    </div></div>`;
+}
+
+/* ----- Ações da IA e da sugestão ----- */
+async function rtAprimorar(etapaId) {
+  const r = rtEstado.r, aba = rtEstado.aba, e = rtEtapasAssistente().find((x) => x.id === etapaId);
+  if (!r || !e) return;
+  if (!hasApiKey()) { toast(t("toast.needKey")); openGlobalKeyModal(); return; }
+  if (r.secoes[etapaId].sugestao && !confirm(tr3("Já existe uma sugestão aguardando decisão nesta seção. Substituir por uma nova?", "A suggestion is already pending in this section. Replace it?", "既存の提案を置き換えますか？"))) return;
+  const chave = r.id + etapaId;
+  rtEstado.iaEmCurso[chave] = true; rtRenderPainel();
+  try {
+    const sugestao = await rtAprimorarSecao(r, aba, e);
+    r.secoes[etapaId].sugestao = sugestao;
+    rtAlterado(false);
+    toast(sugestao.alertas.some((a) => a.nivel === "alto") ? tr3("Sugestão pronta — ATENÇÃO aos alertas antes de aceitar.", "Suggestion ready — CHECK the alerts before accepting.", "提案あり — 警告を確認してください。") : tr3("Sugestão pronta para comparação.", "Suggestion ready to compare.", "提案の準備ができました。"));
+  } catch (err) {
+    toast(tr3("Não foi possível aprimorar: ", "Could not improve: ", "改善できません: ") + (err.message || err) + tr3(" Seu texto não foi alterado.", " Your text was not changed.", " 本文は変更されていません。"));
+  } finally {
+    delete rtEstado.iaEmCurso[chave];
+    if (rtEstado.r && rtEstado.r.id === r.id) rtRender();
+  }
+}
+function rtAceitar(etapaId) {
+  const sec = rtEstado.r.secoes[etapaId], sg = sec && sec.sugestao;
+  if (!sg) return;
+  const texto = (el("rtSugTexto") ? el("rtSugTexto").value : sg.texto).trim();
+  if (!texto) { toast(tr3("A sugestão está vazia.", "The suggestion is empty.", "提案が空です。")); return; }
+  const alertas = rtVerificarFidelidade(sg.base, texto); // rechecagem com as edições do usuário
+  if (alertas.some((a) => a.nivel === "alto") && !confirm(tr3("A checagem automática ainda aponta diferenças de DADOS em relação ao seu texto:\n\n", "The automatic check still shows DATA differences from your text:\n\n", "データの差異があります:\n\n") + alertas.filter((a) => a.nivel === "alto").map((a) => "• " + a.texto).join("\n") + tr3("\n\nAceitar mesmo assim? (você é o responsável pelo conteúdo técnico)", "\n\nAccept anyway? (you are responsible for the technical content)", "\n\n承認しますか？"))) return;
+  sec.anterior = sec.texto;
+  sec.texto = texto;
+  sec.sugestao = null;
+  sec.revisada = true;
+  rtAlterado(true);
+  toast(tr3("Sugestão aceita. Seu texto anterior pode ser restaurado.", "Suggestion accepted. Your previous text can be restored.", "承認しました。"));
+}
+function rtRejeitar(etapaId) {
+  const sec = rtEstado.r.secoes[etapaId];
+  if (!sec || !sec.sugestao) return;
+  sec.sugestao = null;
+  rtAlterado(true);
+  toast(tr3("Sugestão descartada. Seu texto foi mantido.", "Suggestion discarded. Your text was kept.", "提案を破棄しました。"));
+}
+function rtDesfazer(etapaId) {
+  const sec = rtEstado.r.secoes[etapaId];
+  if (!sec || sec.anterior == null) return;
+  const atual = sec.texto;
+  sec.texto = sec.anterior; sec.anterior = atual; sec.revisada = false;
+  rtAlterado(true);
+}
+
+/* ----- Revisão final ----- */
+function rtRenderRevisaoFinal() {
+  const r = rtEstado.r, aba = rtEstado.aba, etapas = rtEtapasAssistente();
+  const itens = rtChecagensDeterministicas(r, aba);
+  const ir = (id) => { const i = etapas.findIndex((e) => e.id === id); return i >= 0 ? ` <button type="button" data-rt-etapa="${i}" class="ml-1 text-[11.5px] font-semibold text-rinnai-red underline">${esc(tr3("ir para a etapa", "go to step", "移動"))}</button>` : ""; };
+  const corNivel = { pendente: "info", alerta: "alerta", info: "info" };
+  const nomeNivel = { pendente: tr3("pendente", "pending", "未入力"), alerta: tr3("verificar", "check", "要確認"), info: tr3("informação", "info", "情報") };
+  const h = [];
+  h.push(`<p class="text-[11px] font-bold uppercase tracking-wider text-rinnai-g3">${esc(tr3("Última etapa", "Last step", "最終ステップ"))}</p><h2 class="mt-1 text-[19px] font-bold text-rinnai-g1">${esc(tr3("Revisão final e geração do relatório", "Final review and report generation", "最終確認と生成"))}</h2>
+    <p class="mt-1 text-[12.5px] text-rinnai-g2">${esc(tr3("Nada é alterado automaticamente aqui: os apontamentos abaixo servem para você decidir e, se quiser, voltar à seção para corrigir.", "Nothing is changed automatically here: the items below help you decide and go back to fix them.", "ここでは自動変更はありません。"))}</p>`);
+  // Estrutura
+  const titulos = etapas.filter((e) => e.titulo).map((e) => e.titulo);
+  const nCampos = etapas.reduce((s, e) => s + e.elementos.filter((x) => x.tipo === "campo").length, 0);
+  const nChecks = etapas.reduce((s, e) => s + e.elementos.filter((x) => x.tipo === "check").length, 0);
+  h.push(`<div class="mt-4 rounded-rinnai border border-rinnai-line p-3"><p class="text-[13px] font-semibold text-rinnai-g1">${pnBadge("ok", tr3("estrutura", "structure", "構造"))} ${esc(tr3(`O relatório usa o próprio arquivo do modelo (${aba.nome}): ${titulos.length} títulos de seção na ordem original, ${nCampos} campos e ${nChecks} caixas de seleção — nenhum título, campo ou linha é removido, renomeado ou reordenado. A estrutura é conferida de novo no arquivo gerado.`, `The report uses the template file itself (${aba.nome}): ${titulos.length} section titles in original order, ${nCampos} fields and ${nChecks} checkboxes — nothing is removed, renamed or reordered. The structure is re-checked in the generated file.`, "テンプレート構造を保持します。"))}</p>
+    <p class="mt-1 text-[11.5px] text-rinnai-g3">${esc(titulos.join(" · "))}</p></div>`);
+  // Checagens determinísticas
+  h.push(`<div class="mt-4"><p class="text-[13px] font-bold text-rinnai-g1">${esc(tr3("Checagens automáticas", "Automatic checks", "自動チェック"))} <span class="font-normal text-rinnai-g3">(${itens.length ? itens.length : tr3("nenhum apontamento", "no findings", "指摘なし")})</span></p>
+    ${itens.length ? `<ul class="mt-2 space-y-1.5 text-[12.5px]">${itens.map((x) => `<li class="flex flex-wrap items-baseline gap-1.5">${pnBadge(corNivel[x.nivel], nomeNivel[x.nivel])} <span class="text-rinnai-g1">${esc(x.texto)}</span>${ir(x.etapaId)}</li>`).join("")}</ul>` : `<p class="mt-1 text-[12.5px] text-green-700 dark:text-green-300">✓ ${esc(tr3("Nenhuma pendência encontrada pelas checagens automáticas.", "No issue found by the automatic checks.", "問題なし"))}</p>`}</div>`);
+  // Revisão de coerência pela IA
+  const rv = rtEstado.revisaoIA && rtEstado.revisaoIA.id === r.id ? rtEstado.revisaoIA : null;
+  h.push(`<div class="mt-5 rounded-rinnai border border-rinnai-line p-3"><div class="flex flex-wrap items-center justify-between gap-2"><p class="text-[13px] font-bold text-rinnai-g1">${esc(tr3("Revisão de coerência entre seções (IA)", "Cross-section consistency review (AI)", "セクション間の整合性 (AI)"))}</p>
+      <button type="button" data-rt-revisao-ia class="btn-ghost !px-3 !py-1.5 !text-[12px]" ${rv && rv.emCurso ? "disabled" : ""}>${rv && rv.emCurso ? tradutorSpinnerHtml(tr3("Analisando…", "Analysing…", "分析中…")) : esc(rv ? tr3("Analisar de novo", "Analyse again", "再分析") : tr3("Analisar o relatório completo", "Analyse the full report", "全体を分析"))}</button></div>
+    <p class="mt-1 text-[11.5px] text-rinnai-g3">${esc(tr3("Procura contradições, duplicidades, termos inconsistentes e pontos que pedem esclarecimento. Só aponta — não altera nada.", "Looks for contradictions, duplicates, inconsistent terms and unclear points. Only flags — changes nothing.", "指摘のみ。変更はしません。"))}</p>
+    ${rv && rv.erro ? `<p class="mt-2 text-[12.5px] text-rinnai-red">⛔ ${esc(rv.erro)}</p>` : ""}
+    ${rv && rv.problemas ? (rv.problemas.length ? `<ul class="mt-2 space-y-1.5 text-[12.5px]">${rv.problemas.map((p) => `<li>${pnBadge(p.tipo === "contradicao" || p.tipo === "conclusao_sem_base" ? "alerta" : "info", p.tipo.replace(/_/g, " "))} <span class="text-rinnai-g1">${esc(p.descricao)}</span>${p.pergunta ? ` <span class="text-rinnai-g2">— ${esc(p.pergunta)}</span>` : ""}${ir(p.etapaId)}</li>`).join("")}</ul>` : `<p class="mt-2 text-[12.5px] text-green-700 dark:text-green-300">✓ ${esc(tr3("Nenhuma incoerência apontada pela IA.", "No inconsistency flagged by the AI.", "指摘なし"))}</p>`) : ""}
+    ${rv && rv.em ? `<p class="mt-1 text-[11px] text-rinnai-g3">${esc(tr3("Análise de ", "Analysis from ", "分析 ") + fmtDate(rv.em))}${rv.versao && r.atualizadoEm > rv.versao ? esc(tr3(" — o relatório mudou depois disso", " — the report changed since", " — 以降に変更あり")) : ""}</p>` : ""}</div>`);
+  // Pré-visualização
+  h.push(`<div class="mt-5 flex flex-wrap items-center gap-2">
+    <button type="button" data-rt-previa class="btn-ghost !px-4 !py-2 !text-[12.5px]">${esc(rtEstado.mostrarPrevia ? tr3("Ocultar pré-visualização", "Hide preview", "プレビューを隠す") : tr3("Pré-visualizar o relatório completo", "Preview the full report", "全体をプレビュー"))}</button>
+    <button type="button" data-rt-imprimir class="btn-ghost !px-4 !py-2 !text-[12.5px]">${esc(tr3("Imprimir / salvar como PDF", "Print / save as PDF", "印刷 / PDF"))}</button></div>
+    ${rtEstado.mostrarPrevia ? `<div class="mt-3 overflow-x-auto rounded-rinnai border border-rinnai-line bg-white p-3"><div style="min-width:640px">${rtPreviewHtml(r, aba)}</div><p class="mt-2 text-[11px] text-gray-500">${esc(tr3("Pré-visualização aproximada da área de impressão do modelo. O arquivo .xlsx gerado é o próprio modelo preenchido.", "Approximate preview of the template print area. The generated .xlsx is the template itself, filled in.", "概略プレビュー"))}</p></div>` : ""}`);
+  // Aprovação + geração
+  h.push(`<div class="mt-6 rounded-rinnai-lg border-2 border-rinnai-line p-4">
+    <label class="flex items-start gap-2 text-[13px] text-rinnai-g1"><input type="checkbox" data-rt-aprovar ${r.aprovado ? "checked" : ""} class="mt-0.5 h-4 w-4 accent-[#cf000e]" />
+      <span>${esc(tr3("Revisei todo o conteúdo e aprovo a geração do relatório. Entram no arquivo somente os textos e valores que estão nas etapas (sugestões não aceitas ficam de fora).", "I reviewed all content and approve generating the report. Only the texts and values in the steps are included (unaccepted suggestions are left out).", "内容を確認し、生成を承認します。"))}</span></label>
+    <div class="mt-3 flex flex-wrap items-center gap-2">
+      <button type="button" data-rt-gerar class="btn-primary !px-5 !py-2.5 !text-[13px]" ${r.aprovado ? "" : "disabled"}>${esc(tr3("Gerar relatório (.xlsx)", "Generate report (.xlsx)", "報告書を生成 (.xlsx)"))}</button>
+      <span id="rtGerarStatus" class="text-[12px] text-rinnai-g2">${r.geradoEm ? esc(tr3("Último arquivo gerado em ", "Last generated on ", "最終生成 ") + fmtDate(r.geradoEm)) : ""}</span>
+    </div></div>
+    <div class="mt-6 border-t border-rinnai-line pt-4"><button type="button" data-rt-nav="-1" class="btn-ghost !px-4 !py-2 !text-[13px]">← ${esc(tr3("Voltar às seções", "Back to sections", "セクションへ戻る"))}</button></div>`);
+  RT.painel.innerHTML = h.join("");
+}
+async function rtExecutarRevisaoIA() {
+  const r = rtEstado.r;
+  if (!hasApiKey()) { toast(t("toast.needKey")); openGlobalKeyModal(); return; }
+  rtEstado.revisaoIA = { id: r.id, emCurso: true };
+  rtRenderPainel();
+  try {
+    const problemas = await rtRevisaoGeralIA(r, rtEstado.aba);
+    rtEstado.revisaoIA = { id: r.id, problemas, em: Date.now(), versao: r.atualizadoEm };
+  } catch (err) {
+    rtEstado.revisaoIA = { id: r.id, erro: tr3("A revisão pela IA falhou: ", "The AI review failed: ", "AI レビュー失敗: ") + (err.message || err) + tr3(" Nada foi alterado; as checagens automáticas acima continuam válidas.", " Nothing was changed.", "") };
+  }
+  if (rtEstado.r && rtEstado.r.id === r.id && rtEstado.etapa === rtEtapasAssistente().length) rtRenderPainel();
+}
+async function rtGerar() {
+  const r = rtEstado.r;
+  if (!r || !r.aprovado) return;
+  if (rtEstado.timer) rtSalvarAgora();
+  const st = el("rtGerarStatus");
+  if (st) st.textContent = tr3("Gerando a partir do arquivo do modelo…", "Generating from the template file…", "生成中…");
+  try {
+    const { blob, aba } = await rtGerarXlsx(r);
+    const conf = await rtConferirEstrutura(blob, aba);
+    if (!conf.ok) { if (st) st.innerHTML = `<span class="text-rinnai-red">⛔ ${esc(tr3("Arquivo NÃO entregue: a conferência encontrou diferença na estrutura do modelo (", "File NOT delivered: the structure check found a difference (", "構造の差異: ") + conf.detalhe + ").")}</span>`; return; }
+    downloadBlob(blob, rtNomeArquivo(r, aba));
+    r.geradoEm = Date.now();
+    const ok = rtSalvarAgora();
+    if (st) st.innerHTML = esc(tr3(`✓ Relatório gerado e estrutura conferida (${conf.secoes} títulos do modelo na ordem original).`, `✓ Report generated and structure verified (${conf.secoes} template titles in original order).`, "✓ 生成・構造確認済み")) + (ok ? "" : ` <span class="text-rinnai-red">${esc(tr3("(o registro da geração não pôde ser salvo no rascunho)", "(the generation record could not be saved)", ""))}</span>`);
+    rtRenderEtapas();
+  } catch (err) {
+    if (st) st.innerHTML = `<span class="text-rinnai-red">⛔ ${esc(tr3("Falha ao gerar: ", "Generation failed: ", "生成失敗: ") + (err.message || err))}</span>`;
+  }
+}
+function rtImprimir() {
+  const r = rtEstado.r, aba = rtEstado.aba;
+  const w = window.open("", "_blank");
+  if (!w) { toast(tr3("O navegador bloqueou a janela de impressão.", "The browser blocked the print window.", "印刷ウィンドウがブロックされました。")); return; }
+  w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(rtNomeArquivo(r, aba).replace(/\.xlsx$/, ""))}</title><style>@page{size:A4 portrait;margin:12mm 8mm}body{margin:0;font-family:Arial,Helvetica,sans-serif}</style></head><body>${rtPreviewHtml(r, aba)}<script>window.onload=function(){window.print();}<\/script></body></html>`);
+  w.document.close();
+}
+
+/* ----- Estrutura do modelo / nova revisão ----- */
+function rtHtmlEstrutura(aba) {
+  return `<ol class="space-y-2 text-[12.5px]">${aba.estrutura.etapas.map((e) => `<li class="rounded-rinnai border border-rinnai-line p-2.5">
+    <p class="font-semibold text-rinnai-g1">${e.titulo ? esc(e.titulo) : `<i>${esc(rtNomeEtapa(e))}</i> <span class="font-normal text-rinnai-g3">(${esc(tr3("sem título no modelo", "untitled in template", "無題"))})</span>`} <span class="font-normal text-rinnai-g3">· ${esc(tr3(`linhas ${e.linhaIni}–${e.linhaFim}`, `rows ${e.linhaIni}–${e.linhaFim}`, `行 ${e.linhaIni}–${e.linhaFim}`))}</span></p>
+    <p class="mt-1 text-rinnai-g2">${e.elementos.filter((x) => x.tipo !== "linha").map((x) => x.tipo === "campo" ? `▭ ${esc(x.rotulo)}` : x.tipo === "check" ? `☐ ${esc(x.rotulo)}` : `“${esc(String(x.texto).replace(/\s+/g, " ").slice(0, 60))}”`).join(" · ") || ""}${e.linhasTexto.length ? ` ${esc(tr3(`· ${e.linhasTexto.length} linha(s) de texto`, `· ${e.linhasTexto.length} text row(s)`, `· ${e.linhasTexto.length} 行`))}` : ""}</p></li>`).join("")}</ol>`;
+}
+function rtAbrirModalModelo(novo) {
+  rtEstado.novoModelo = novo || null;
+  const abas = novo ? novo.abas : rtEstado.modelo.abas;
+  RT.modalTitulo.textContent = novo ? tr3(`Conferir nova revisão: ${novo.nome}`, `Check new revision: ${novo.nome}`, `新しい改訂版: ${novo.nome}`) : tr3("Estrutura do modelo em uso", "Template structure in use", "使用中のテンプレート構造");
+  RT.modalCorpo.innerHTML = (novo ? `<p class="mb-3 rounded-rinnai bg-amber-50 px-3 py-2 text-[12.5px] text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">${esc(tr3("Confira se a estrutura abaixo corresponde exatamente ao novo modelo do laboratório antes de usá-lo. Rascunhos existentes continuam ligados ao modelo com que foram criados.", "Check that the structure below matches the new template exactly before using it.", "使用前に構造を確認してください。"))}</p>` : "")
+    + abas.map((a) => `<h3 class="mb-2 mt-3 text-[14px] font-bold text-rinnai-g1">${esc(tr3("Aba", "Sheet", "シート"))} “${esc(a.nome)}”</h3>${rtHtmlEstrutura(a)}`).join("");
+  RT.modalAcoes.innerHTML = novo
+    ? `<button type="button" data-rt-fechar-modal class="btn-ghost !px-4 !py-2 !text-[13px]">${esc(tr3("Cancelar", "Cancel", "キャンセル"))}</button><button type="button" data-rt-usar-modelo class="btn-primary !px-4 !py-2 !text-[13px]">${esc(tr3("A estrutura confere — usar esta revisão", "Structure matches — use this revision", "この改訂版を使用"))}</button>`
+    : `${rtEstado.modelo.embutido ? "" : `<button type="button" data-rt-modelo-padrao class="btn-ghost !px-4 !py-2 !text-[13px]">${esc(tr3("Voltar ao modelo padrão embutido (Anexo 378 REV 04)", "Back to the embedded standard template", "標準テンプレートに戻す"))}</button>`}<button type="button" data-rt-fechar-modal class="btn-primary !px-4 !py-2 !text-[13px]">${esc(tr3("Fechar", "Close", "閉じる"))}</button>`;
+  mostrarOverlay(RT.modal);
+}
+async function rtUsarNovoModelo() {
+  const n = rtEstado.novoModelo;
+  if (!n) return;
+  try { localStorage.setItem(LS_RT_MODELO, JSON.stringify({ nome: n.nome, b64: n.b64, carregadoEm: Date.now() })); }
+  catch (e) { toast(tr3("A nova revisão NÃO foi salva: falta espaço no armazenamento do navegador.", "The new revision was NOT saved: storage is full.", "保存されませんでした")); return; }
+  rtModeloCache = null; rtEstado.r = null;
+  esconderOverlay(RT.modal);
+  await rtIniciar();
+  toast(tr3("Nova revisão do modelo em uso.", "New template revision in use.", "新しい改訂版を使用中"));
+}
+async function rtVoltarModeloPadrao() {
+  if (!confirm(tr3("Voltar a usar o modelo padrão embutido (Anexo 378 REV 04)?", "Go back to the embedded standard template?", "標準テンプレートに戻しますか？"))) return;
+  try { localStorage.removeItem(LS_RT_MODELO); } catch (e) {}
+  rtModeloCache = null; rtEstado.r = null;
+  esconderOverlay(RT.modal);
+  await rtIniciar();
+}
+
+/* ----- Ligações ----- */
+if (RT.vistaRel) {
+  document.querySelectorAll("[data-lab-aba]").forEach((b) => b.addEventListener("click", () => rtMostrarAbaLab(b.getAttribute("data-lab-aba"))));
+  RT.novo.addEventListener("click", () => rtNovo());
+  RT.excluir.addEventListener("click", () => rtExcluir());
+  RT.selRascunho.addEventListener("change", () => {
+    if (rtEstado.timer) rtSalvarAgora();
+    if (rtEstado.falhouSalvar && !confirm(tr3("O rascunho atual não pôde ser salvo. Trocar mesmo assim (as últimas alterações podem se perder)?", "The current draft could not be saved. Switch anyway?", "保存に失敗しています。切り替えますか？"))) { RT.selRascunho.value = rtEstado.r ? rtEstado.r.id : ""; return; }
+    if (RT.selRascunho.value) rtAbrirRascunho(RT.selRascunho.value); else rtRenderListaRascunhos("");
+  });
+  RT.selVersao.addEventListener("change", () => { if (rtEstado.r && RT.selVersao.value !== rtEstado.r.aba) toast(tr3(`A versão "${RT.selVersao.value}" será usada no próximo "Novo relatório". O rascunho aberto continua em "${rtEstado.r.aba}".`, `Version "${RT.selVersao.value}" will be used for the next new report. The open draft stays in "${rtEstado.r.aba}".`, "次の新規報告書に適用されます。")); });
+  RT.modeloInfo.addEventListener("click", (ev) => {
+    if (ev.target.closest("[data-rt-ver-modelo]")) rtAbrirModalModelo(null);
+    if (ev.target.closest("[data-rt-carregar-modelo]")) RT.modeloInput.click();
+  });
+  RT.modeloInput.addEventListener("change", async (ev) => {
+    const f = ev.target.files && ev.target.files[0]; ev.target.value = "";
+    if (!f) return;
+    try { rtAbrirModalModelo(await rtCarregarNovoModelo(f)); }
+    catch (err) { toast(tr3("Modelo não carregado: ", "Template not loaded: ", "読み込めません: ") + (err.message || err)); }
+  });
+  RT.modal.addEventListener("click", (ev) => {
+    if (ev.target === RT.modal || ev.target.closest("[data-rt-fechar-modal]")) { esconderOverlay(RT.modal); rtEstado.novoModelo = null; }
+    if (ev.target.closest("[data-rt-usar-modelo]")) rtUsarNovoModelo();
+    if (ev.target.closest("[data-rt-modelo-padrao]")) rtVoltarModeloPadrao();
+  });
+  RT.etapas.addEventListener("click", (ev) => { const b = ev.target.closest("[data-rt-etapa]"); if (b) rtIrPara(+b.getAttribute("data-rt-etapa")); });
+  RT.painel.addEventListener("click", (ev) => {
+    const q = (sel) => ev.target.closest(sel);
+    let b;
+    if ((b = q("[data-rt-etapa]"))) return rtIrPara(+b.getAttribute("data-rt-etapa"));
+    if ((b = q("[data-rt-nav]"))) return rtIrPara(rtEstado.etapa + +b.getAttribute("data-rt-nav"));
+    if ((b = q("[data-rt-aprimorar]"))) return rtAprimorar(b.getAttribute("data-rt-aprimorar"));
+    if ((b = q("[data-rt-aceitar]"))) return rtAceitar(b.getAttribute("data-rt-aceitar"));
+    if ((b = q("[data-rt-rejeitar]"))) return rtRejeitar(b.getAttribute("data-rt-rejeitar"));
+    if ((b = q("[data-rt-desfazer]"))) return rtDesfazer(b.getAttribute("data-rt-desfazer"));
+    if (q("[data-rt-revisao-ia]")) return rtExecutarRevisaoIA();
+    if (q("[data-rt-previa]")) { rtEstado.mostrarPrevia = !rtEstado.mostrarPrevia; return rtRenderPainel(); }
+    if (q("[data-rt-imprimir]")) return rtImprimir();
+    if (q("[data-rt-gerar]")) return rtGerar();
+  });
+  RT.painel.addEventListener("input", (ev) => {
+    const r = rtEstado.r, tgt = ev.target;
+    if (!r) return;
+    if (tgt.matches("[data-rt-campo]")) {
+      const ref = tgt.getAttribute("data-rt-campo");
+      r.campos[ref] = tgt.value;
+      const x = rtEtapasAssistente().flatMap((e) => e.elementos).find((y) => y.tipo === "campo" && y.ref === ref);
+      const aviso = RT.painel.querySelector(`[data-rt-aviso-campo="${ref}"]`);
+      if (aviso && x) aviso.classList.toggle("hidden", !rtCampoExcede(rtEstado.aba, x, tgt.value));
+      const e = rtEtapasAssistente()[rtEstado.etapa]; if (e && r.revisadas[e.id]) r.revisadas[e.id] = false;
+      return rtAlterado(false);
+    }
+    if (tgt.matches("[data-rt-linha]")) { r.linhas[tgt.getAttribute("data-rt-linha")] = tgt.value; return rtAlterado(false); }
+    if (tgt.matches("[data-rt-texto]")) {
+      const id = tgt.getAttribute("data-rt-texto"), sec = r.secoes[id];
+      sec.texto = tgt.value;
+      if (sec.revisada) { sec.revisada = false; const cb = RT.painel.querySelector(`[data-rt-revisada="${id}"]`); if (cb) cb.checked = false; }
+      const e = rtEtapasAssistente().find((y) => y.id === id);
+      const cap = el("rtCapacidade"), plano = rtPlanoSecao(rtEstado.aba, e, sec.texto);
+      if (cap) { cap.textContent = rtTextoCapacidade(plano, rtCaracteresPorLinha(rtEstado.aba, rtEstado.aba.grade.larguras.reduce((s, w) => s + w, 0))); cap.className = `text-[11px] ${plano.excede ? "text-amber-700 dark:text-amber-300" : "text-rinnai-g3"}`; }
+      const btn = RT.painel.querySelector(`[data-rt-aprimorar="${id}"]`); if (btn && !rtEstado.iaEmCurso[r.id + id]) btn.disabled = rtVazio(sec.texto);
+      const cbr = RT.painel.querySelector(`[data-rt-revisada="${id}"]`); if (cbr) cbr.disabled = rtVazio(sec.texto);
+      return rtAlterado(false);
+    }
+  });
+  RT.painel.addEventListener("change", (ev) => {
+    const r = rtEstado.r, tgt = ev.target;
+    if (!r) return;
+    if (tgt.matches("[data-rt-check]")) { r.checks[tgt.getAttribute("data-rt-check")] = tgt.checked; const e = rtEtapasAssistente()[rtEstado.etapa]; if (e && r.revisadas[e.id]) r.revisadas[e.id] = false; return rtAlterado(false); }
+    if (tgt.matches("[data-rt-revisada]")) { r.secoes[tgt.getAttribute("data-rt-revisada")].revisada = tgt.checked; return rtAlterado(false); }
+    if (tgt.matches("[data-rt-revisada-etapa]")) { r.revisadas[tgt.getAttribute("data-rt-revisada-etapa")] = tgt.checked; return rtAlterado(false); }
+    if (tgt.matches("[data-rt-aprovar]")) {
+      rtAlterado(false);
+      r.aprovado = tgt.checked; // depois de rtAlterado(), que zera a aprovação
+      rtSalvarAgora();
+      const g = RT.painel.querySelector("[data-rt-gerar]"); if (g) g.disabled = !tgt.checked;
+    }
+  });
+  // Mantém título/breadcrumb certos ao trocar o idioma.
+  const rtApplyLangOriginal = applyLang;
+  applyLang = function (lang) { rtApplyLangOriginal(lang); rtAtualizarTituloLab(); if (labAbaAtiva === "relatorios" && rtEstado.r) rtRender(); };
 }
 
 /* Logo Rinnai / botão Home / breadcrumb "Home" = "Voltar ao Portal": fecha o
@@ -14995,7 +16278,8 @@ function cmdMontarGrupos() {
     { titulo: tr3("Início", "Home", "ホーム"), sub: tr3("Tela inicial do Portal", "Portal start screen", "ポータルのトップ"), run: () => cmdNavegar(voltarAoHub) },
     { titulo: tr3("Setores", "Sectors", "部門"), sub: "Laboratório · Projetos · Ferramentaria", run: () => cmdNavegar(abrirSetoresSubHub) },
     { titulo: tr3("Outros", "Other", "その他"), sub: tr3("Tradutor de documentos · Pesquisador de normas", "Document translator · Standards researcher", "文書翻訳 · 規格リサーチ"), run: () => cmdNavegar(abrirOutrosSubHub) },
-    { titulo: t("hub.sector.lab"), sub: tr3("Gerador de procedimentos de ensaio", "Test procedure generator", "試験手順書ジェネレーター"), run: () => cmdNavegar(() => abrirModuloLab("lab")) },
+    { titulo: t("hub.sector.lab"), sub: tr3("Gerador de procedimentos de ensaio", "Test procedure generator", "試験手順書ジェネレーター"), run: () => cmdNavegar(() => { abrirModuloLab("lab"); rtMostrarAbaLab("procedimentos"); }) },
+    { titulo: t("rt.abaRel"), sub: tr3("Laboratório P&D · modelo Anexo 378", "P&D Laboratory · Anexo 378 template", "ラボ · Anexo 378"), extras: "relatorio relatório report teste ensaio anexo 378", run: () => cmdNavegar(() => { abrirModuloLab("lab"); rtMostrarAbaLab("relatorios"); }) },
     { titulo: t("hub.sector.projetos"), sub: tr3("Especificação e Manuais", "Specification and Manuals", "仕様書とマニュアル"), run: () => cmdNavegar(abrirSubHubProjetos) },
     { titulo: t("subhub.specs"), sub: "Projetos P&D", run: () => cmdNavegar(() => abrirModuloProjetos("specs")) },
     { titulo: t("subhub.manuais"), sub: "Projetos P&D", run: () => cmdNavegar(() => abrirModuloProjetos("manuais")) },
@@ -15670,6 +16954,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     if (overlayAberto(E.privacyModal)) { fecharAvisoPrivacidade(); return; }
     if (overlayAberto(PN.normaModal)) { esconderOverlay(PN.normaModal); return; }
+    if (overlayAberto(RT.modal)) { esconderOverlay(RT.modal); return; }
     if (overlayAberto(PN.histModal)) { esconderOverlay(PN.histModal); return; }
     if (overlayAberto(E.cmdPalette)) { fecharCmdPalette(); return; }
     if (overlayAberto(E.shortcutsModal)) { fecharAtalhos(); return; }
