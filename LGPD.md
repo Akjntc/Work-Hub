@@ -20,7 +20,7 @@
 | Normas cadastradas | Extraídas e guardadas só neste navegador (IndexedDB). Nada é enviado no cadastro. Entram no Backup (sem o PDF original) e no "Apagar todos os meus dados". |
 | Modo A (norma fornecida) | Só a pergunta e o texto da norma selecionada são enviados ao Gemini, no momento da pesquisa. Sem busca na internet. |
 | Modo B (pesquisa independente) | Só a pergunta é enviada. O Gemini a usa em consultas ao Google Search. Nenhuma norma cadastrada é lida. |
-| Transcrição de páginas por IA | Só acontece quando o usuário clica em "Transcrever". A imagem das páginas escolhidas é enviada ao Gemini. |
+| Leitura de páginas por imagem (OCR com IA) | Acontece na pesquisa do Modo A, só para páginas sem texto selecionável (digitalizadas, só marca d'água, imagem com pouco texto), ou quando o usuário clica em "Transcrever". A imagem dessas páginas é enviada ao Gemini (o mesmo aviso de privacidade já aceito cobre o envio); a transcrição fica gravada só neste navegador, junto da norma, e não é refeita nas próximas pesquisas. Páginas em branco não são enviadas. |
 | Aviso de privacidade | Passou para a versão 2, então todos aceitam de novo, porque a busca no Google é uma nova operação de tratamento. |
 
 ## Pendências da empresa (não se resolvem no código)

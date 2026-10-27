@@ -7770,22 +7770,37 @@ function pnLinhasDaPagina(items) {
 }
 
 /* Qualidade de UMA página: sem texto (provável digitalização), texto
-   suspeito (OCR ruim / fonte sem mapa de caracteres), tabelas e figuras. */
-function pnAvaliarPagina(texto) {
+   suspeito (OCR ruim / fonte sem mapa de caracteres), tabelas e figuras.
+   extra.util = texto SEM as linhas que se repetem em quase todas as páginas
+   (cabeçalho, rodapé, marca d'água de licença): uma página digitalizada com
+   só a marca d'água em texto continua sendo "sem texto". extra.imagem =
+   fração da página coberta por imagens (lista de operações do pdf.js). */
+function pnAvaliarPagina(texto, extra) {
   const t = String(texto || "");
-  const util = t.replace(/\s/g, "");
+  const bruto = t.replace(/\s/g, "");
+  // Linhas recorrentes só derrubam páginas de pouco texto (digitalização com marca d'água);
+  // uma página longa com parágrafos repetidos é texto de verdade.
+  const util = bruto.length >= 400 ? bruto : String(extra && extra.util != null ? extra.util : t).replace(/\s/g, "");
+  const imagem = (extra && extra.imagem) || 0;
   const avisos = [];
-  if (util.length < 30) return { semTexto: true, avisos: ["sem_texto"] };
+  if (extra && extra.emBranco && !bruto.length) return { semTexto: true, emBranco: true, avisos: ["em_branco"], imagem };
+  if (util.length < 30) return { semTexto: true, avisos: t.replace(/\s/g, "").length >= 30 ? ["sem_texto", "so_recorrente"] : ["sem_texto"], imagem };
   const tokens = t.split(/\s+/).filter(Boolean);
   const palavras = tokens.filter((w) => /[A-Za-zÀ-ÿ]{2,}/.test(w) && /[aeiouáéíóúâêôãõàAEIOUÁÉÍÓÚ]/.test(w)).length;
   const lixo = (t.match(/�|\(cid:\d+\)/g) || []).length;
   if ((tokens.length > 25 && palavras / tokens.length < 0.45) || lixo > 5) avisos.push("texto_suspeito");
-  if (/\b(Tabela|Table|Quadro)\s+[A-Z]?\.?\d/i.test(t)) avisos.push("tabela");
+  if (imagem >= 0.5 && util.length < 600) avisos.push("imagem");
+  if (/\b(Tabela|Table|Tabla|Quadro)\s+[A-Z]?\.?\d/i.test(t)) avisos.push("tabela");
   if (/\b(Figura|Figure)\s+[A-Z]?\.?\d/i.test(t)) avisos.push("figura");
-  return { semTexto: false, avisos };
+  return { semTexto: false, avisos, imagem };
 }
+/* Página que precisa ser lida por imagem (OCR com o Gemini) antes de pesquisar. */
+const pnPrecisaOcr = (p) => !(p.textoIA || "").trim() && !!p.qualidade && !p.qualidade.emBranco && (p.qualidade.semTexto || p.qualidade.avisos.includes("imagem"));
 const PN_AVISO_ROTULO = {
   sem_texto: () => tr3("sem texto extraível (provável página digitalizada)", "no extractable text (probably scanned)", "抽出可能なテキストなし(スキャンの可能性)"),
+  em_branco: () => tr3("página em branco (sem texto, imagem ou desenho)", "blank page (no text, image or drawing)", "空白ページ"),
+  so_recorrente: () => tr3("só cabeçalho/rodapé/marca d'água em texto (conteúdo em imagem)", "only header/footer/watermark as text (content is an image)", "ヘッダー/透かしのみ(内容は画像)"),
+  imagem: () => tr3("página ocupada por imagem com pouco texto selecionável", "page is mostly an image with little selectable text", "画像が大半でテキストが少ない"),
   texto_suspeito: () => tr3("texto com sinais de OCR/codificação imprecisos", "text shows signs of poor OCR/encoding", "OCR/文字コードが不正確な可能性"),
   tabela: () => tr3("contém tabela (a estrutura pode ter se perdido na extração)", "contains a table (structure may be lost)", "表を含む(構造が失われている可能性)"),
   figura: () => tr3("contém figura (conteúdo gráfico não é extraído)", "contains a figure (graphics not extracted)", "図を含む(図の内容は抽出されません)"),
@@ -7794,10 +7809,13 @@ const PN_AVISO_ROTULO = {
 /* Avisos do documento inteiro + sugestão de metadados (código/edição). */
 function pnAvaliarDocumento(paginas, paginado) {
   const avisos = [];
-  const semTexto = paginas.filter((p) => p.qualidade.semTexto && !p.textoIA).map((p) => p.n);
+  const semTexto = paginas.filter((p) => p.qualidade.semTexto && !p.qualidade.emBranco && !(p.textoIA || "").trim()).map((p) => p.n);
+  const soImagem = paginas.filter((p) => !p.qualidade.semTexto && pnPrecisaOcr(p)).map((p) => p.n);
   const suspeitas = paginas.filter((p) => p.qualidade.avisos.includes("texto_suspeito")).map((p) => p.n);
-  if (paginas.length && semTexto.length === paginas.length) avisos.push({ nivel: "falha", texto: tr3("Nenhuma página tem texto extraível — o documento parece digitalizado. Use \"Transcrever com IA\" ou cole o texto antes de pesquisar.", "No page has extractable text — the document looks scanned. Use \"Transcribe with AI\" or paste the text before searching.", "抽出可能なテキストがありません。スキャン文書の可能性があります。") });
-  else if (semTexto.length) avisos.push({ nivel: "alerta", texto: tr3(`Páginas sem texto extraível (provável digitalização): ${pnFaixas(semTexto)}. O conteúdo delas não será analisado até ser transcrito.`, `Pages without extractable text (probably scanned): ${pnFaixas(semTexto)}. Their content will not be analysed until transcribed.`, `抽出できないページ: ${pnFaixas(semTexto)}`) });
+  const ocrAuto = paginado ? tr3(" Na pesquisa, elas são lidas por imagem (OCR com o Gemini) automaticamente antes da resposta.", " When searching, they are read as images (OCR with Gemini) automatically before answering.", " 検索時に画像として自動で読み取ります。") : "";
+  if (paginas.length && semTexto.length && semTexto.length === paginas.filter((p) => !p.qualidade.emBranco).length) avisos.push({ nivel: "falha", texto: tr3("Nenhuma página tem texto extraível — o documento parece digitalizado.", "No page has extractable text — the document looks scanned.", "抽出可能なテキストがありません。スキャン文書の可能性があります。") + ocrAuto });
+  else if (semTexto.length) avisos.push({ nivel: "alerta", texto: tr3(`Páginas sem texto extraível (provável digitalização): ${pnFaixas(semTexto)}.`, `Pages without extractable text (probably scanned): ${pnFaixas(semTexto)}.`, `抽出できないページ: ${pnFaixas(semTexto)}.`) + ocrAuto });
+  if (soImagem.length) avisos.push({ nivel: "alerta", texto: tr3(`Páginas ocupadas por imagem com pouco texto selecionável: ${pnFaixas(soImagem)}.`, `Pages that are mostly images with little selectable text: ${pnFaixas(soImagem)}.`, `画像主体のページ: ${pnFaixas(soImagem)}.`) + ocrAuto });
   if (suspeitas.length) avisos.push({ nivel: "alerta", texto: tr3(`Texto possivelmente corrompido (OCR/codificação) nas páginas ${pnFaixas(suspeitas)}.`, `Possibly corrupted text (OCR/encoding) on pages ${pnFaixas(suspeitas)}.`, `文字化けの可能性: ${pnFaixas(suspeitas)}`) });
   if (paginado) {
     const todo = paginas.map((p) => p.texto).join("\n");
@@ -7875,10 +7893,15 @@ async function pnExtrairArquivo(file) {
     try { pdf = await pdfjsLib.getDocument({ data: buf.slice(0) }).promise; }
     catch (e) { throw new Error(/password/i.test(e && e.name || "") ? "O PDF está protegido por senha." : "O PDF está corrompido ou não pôde ser aberto."); }
     for (let i = 1; i <= pdf.numPages; i++) {
-      let texto = "";
-      try { const page = await pdf.getPage(i); texto = pnLinhasDaPagina((await page.getTextContent()).items); }
-      catch (e) { texto = ""; }
-      brutas.push({ n: i, texto });
+      let texto = "", imagem = 0, desenho;
+      try {
+        const page = await pdf.getPage(i);
+        texto = pnLinhasDaPagina((await page.getTextContent()).items);
+        // Cobertura por imagem só importa quando há pouco texto (digitalização / tabela em imagem).
+        // desenho = imagens + traçados vetoriais; 0 com texto vazio = página em branco.
+        if (texto.replace(/\s/g, "").length < 1500) ({ imagem, desenho } = await pnCoberturaImagem(page));
+      } catch (e) { texto = ""; }
+      brutas.push({ n: i, texto, imagem, desenho });
     }
     try { await pdf.destroy(); } catch (e) {}
   } else if (/\.docx$/.test(nome) || file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
@@ -7892,7 +7915,7 @@ async function pnExtrairArquivo(file) {
   return pnMontarDocumento(brutas, paginado, { tipo, blob, arquivoNome: file.name });
 }
 function pnMontarDocumento(brutas, paginado, extra) {
-  const paginas = brutas.map((p) => ({ n: p.n, texto: p.texto || "", textoIA: p.textoIA || "", qualidade: pnAvaliarPagina(p.texto) }));
+  const paginas = pnAvaliarPaginas(brutas.map((p) => ({ n: p.n, texto: p.texto || "", textoIA: p.textoIA || "", imagem: p.imagem || 0, desenho: p.desenho })), paginado);
   const todo = paginas.map((p) => p.texto).join("\n");
   return {
     paginado, paginas, tipo: extra.tipo, blob: extra.blob || null, arquivoNome: extra.arquivoNome || "",
@@ -7900,7 +7923,112 @@ function pnMontarDocumento(brutas, paginado, extra) {
     sugestao: pnSugerirMetadados(todo, extra.arquivoNome),
   };
 }
-const pnTextoUtil = (norma) => (norma.paginas || []).some((p) => (p.texto || "").replace(/\s/g, "").length >= 30 || (p.textoIA || "").trim());
+/* (Re)avalia todas as páginas: linhas recorrentes, qualidade e numeração
+   impressa. Puro (só texto) — também atualiza normas cadastradas antes
+   desta versão, sem precisar do arquivo original. */
+function pnAvaliarPaginas(paginas, paginado) {
+  const recorrentes = pnLinhasRecorrentes(paginas);
+  const impressas = paginado ? pnDetectarPaginasImpressas(paginas, recorrentes) : [];
+  return paginas.map((p, i) => ({
+    ...p,
+    qualidade: pnAvaliarPagina(p.texto, { util: pnSemRecorrentes(p.texto, recorrentes), imagem: p.imagem || 0, emBranco: p.desenho === 0 && !(p.texto || "").trim() }),
+    impressa: impressas[i] || "",
+  }));
+}
+const pnTextoUtil = (norma) => (norma.paginas || []).some((p) => (p.qualidade ? !p.qualidade.semTexto : (p.texto || "").replace(/\s/g, "").length >= 30) || (p.textoIA || "").trim());
+/* Há o que ler, agora ou depois do OCR automático (PDF original guardado). */
+const pnPesquisavel = (norma) => pnTextoUtil(norma) || (norma.tipo === "pdf" && !!norma.blob && norma.paginado);
+const pnNormaAtualizada = (n) => {
+  const paginas = pnAvaliarPaginas(n.paginas || [], n.paginado);
+  return { ...n, paginas, avisos: pnAvaliarDocumento(paginas, n.paginado) };
+};
+
+/* Fração da página coberta por imagens (página digitalizada, tabela colada
+   como figura). Acompanha a matriz de transformação da lista de operações. */
+async function pnCoberturaImagem(page) {
+  try {
+    const O = pdfjsLib.OPS;
+    const ops = await page.getOperatorList();
+    const vp = page.getViewport({ scale: 1 });
+    const areaPag = vp.width * vp.height;
+    const mult = (m, n) => [m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1], m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3], m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5]];
+    const pintaImagem = new Set([O.paintImageXObject, O.paintInlineImageXObject, O.paintJpegXObject, O.paintImageMaskXObject, O.paintImageXObjectRepeat].filter((x) => x != null));
+    let ctm = [1, 0, 0, 1, 0, 0], area = 0, desenho = 0;
+    const pilha = [];
+    for (let i = 0; i < ops.fnArray.length; i++) {
+      const fn = ops.fnArray[i], a = ops.argsArray[i];
+      if (fn === O.save) pilha.push(ctm);
+      else if (fn === O.restore) ctm = pilha.pop() || [1, 0, 0, 1, 0, 0];
+      else if (fn === O.transform) ctm = mult(ctm, a);
+      else if (fn === O.paintFormXObjectBegin) { pilha.push(ctm); if (a && Array.isArray(a[0]) && a[0].length === 6) ctm = mult(ctm, a[0]); }
+      else if (fn === O.paintFormXObjectEnd) ctm = pilha.pop() || ctm;
+      else if (pintaImagem.has(fn)) { area += Math.abs(ctm[0] * ctm[3] - ctm[1] * ctm[2]); desenho++; }
+      else if (fn === O.constructPath) desenho++;
+    }
+    return { imagem: areaPag ? Math.min(1, area / areaPag) : 0, desenho };
+  } catch (e) { return { imagem: 0, desenho: -1 }; }
+}
+
+/* Linhas que se repetem em ≥ 40% das páginas (mín. 3): cabeçalho, rodapé,
+   marca d'água/licença. Números viram "#" para casar "página 3" com "página 4". */
+const pnChaveLinha = (l) => pnNormalizar(l, false).texto.replace(/\d+/g, "#").trim();
+function pnLinhasRecorrentes(paginas) {
+  if (paginas.length < 3) return new Set();
+  const cont = new Map();
+  for (const p of paginas) {
+    // Títulos de seção ("8.93 Ensaio…") nunca contam: só mudam no número, mas são estrutura.
+    new Set(String(p.texto || "").split("\n").filter((l) => !pnTituloDaLinha(l)).map(pnChaveLinha).filter((k) => k.replace(/[#\s]/g, "").length >= 3))
+      .forEach((k) => cont.set(k, (cont.get(k) || 0) + 1));
+  }
+  const min = Math.max(3, Math.ceil(paginas.length * 0.4));
+  return new Set([...cont].filter(([, c]) => c >= min).map(([k]) => k));
+}
+const pnSemRecorrentes = (texto, recorrentes) => (recorrentes.size ? String(texto || "").split("\n").filter((l) => !recorrentes.has(pnChaveLinha(l))).join("\n") : String(texto || ""));
+
+/* Numeração IMPRESSA da página (a que o usuário vê no rodapé/cabeçalho),
+   distinta da página física do PDF. Só aceita números em linhas de borda
+   (3 primeiras/3 últimas) e prefere o deslocamento físico−impresso mais
+   frequente no documento, o que descarta números soltos de tabelas. */
+const PN_ROMANO = /^(?=[ivxlc]+$)c{0,3}(?:xc|xl|l?x{0,3})(?:ix|iv|v?i{0,3})$/;
+function pnCandidatosPagina(texto, recorrentes) {
+  const linhas = String(texto || "").split("\n").map((l) => l.trim()).filter(Boolean);
+  const bordas = linhas.length <= 6 ? linhas : [...linhas.slice(0, 3), ...linhas.slice(-3)];
+  const out = [];
+  for (const l of bordas) {
+    // Linha de sumário ("5.4 Título | 3") não é número de página.
+    if (/^(?:\d{1,2}(?:\.\d{1,3}){0,5}|anexo|annex|anejo|appendix)\s+\S.*(?:\s\|\s|\.{3,}|…)\s*\S+$/i.test(l)) continue;
+    // "forte": a linha é cabeçalho/rodapé que se repete nas páginas (com o número trocando).
+    const forte = !!recorrentes && recorrentes.has(pnChaveLinha(l));
+    const partes = l.split(/\s+\|\s+/).map((x) => x.trim()).filter(Boolean);
+    for (const s of new Set([l, partes[0], partes[partes.length - 1]])) {
+      const m = s.match(/^(?:[-–—]\s*)?(\d{1,4})(?:\s*[-–—])?$/) || s.match(/^(?:p[áa]g(?:ina)?\.?|page|p\.)\s*(\d{1,4})(?:\s*(?:de|of|\/)\s*\d{1,4})?$/i);
+      if (m) out.push({ n: +m[1], txt: String(+m[1]), forte });
+      else if (PN_ROMANO.test(s.toLowerCase()) && s.length <= 7) out.push({ romano: true, txt: s.toLowerCase(), forte });
+    }
+    const m2 = l.match(/\b(?:p[áa]gina|page)\s*(\d{1,4})\s*(?:de|of|\/)\s*\d{1,4}\b/i);
+    if (m2) out.push({ n: +m2[1], txt: String(+m2[1]), forte: true });
+  }
+  return out;
+}
+function pnDetectarPaginasImpressas(paginas, recorrentes) {
+  const recIA = pnLinhasRecorrentes(paginas.filter((p) => (p.textoIA || "").trim()).map((p) => ({ texto: p.textoIA })));
+  const cands = paginas.map((p) => pnCandidatosPagina(p.texto, recorrentes).concat(pnCandidatosPagina(p.textoIA, recIA)));
+  const comCand = cands.filter((c) => c.length).length;
+  if (!comCand || (paginas.length > 2 && comCand < Math.max(2, paginas.length * 0.3))) return paginas.map(() => "");
+  const desloc = new Map();
+  cands.forEach((cs, i) => new Set(cs.filter((c) => !c.romano).map((c) => paginas[i].n - c.n)).forEach((d) => desloc.set(d, (desloc.get(d) || 0) + 1)));
+  return paginas.map((p, i) => {
+    const fortes = cands[i].filter((c) => c.forte);
+    if (fortes.length) return (fortes.find((c) => !c.romano) || fortes[0]).txt;
+    const arab = cands[i].filter((c) => !c.romano).sort((a, b) => (desloc.get(p.n - b.n) || 0) - (desloc.get(p.n - a.n) || 0));
+    // Um deslocamento visto em uma página só é aceito se a numeração for sequencial com a vizinha.
+    const seq = (c) => [i - 1, i + 1].some((j) => cands[j] && cands[j].some((x) => !x.romano && x.n - c.n === j - i));
+    if (arab.length && ((desloc.get(p.n - arab[0].n) || 0) >= 2 || paginas.length <= 2 || seq(arab[0]))) return arab[0].txt;
+    const rom = cands[i].find((c) => c.romano);
+    const vizinhoRomano = [i - 1, i + 1].some((j) => cands[j] && cands[j].some((c) => c.romano));
+    return rom && (vizinhoRomano || i < 12) ? rom.txt : "";
+  });
+}
 const pnRotuloNorma = (n) => [n.codigo, n.titulo].filter(Boolean).join(" — ") + (n.edicao ? ` (${n.edicao})` : "");
 
 /* ---------- Verificação determinística (sem IA) ----------
@@ -7939,7 +8067,7 @@ function pnNormalizar(texto, comMapa) {
   }
   return { texto: out, mapa };
 }
-const PN_TOKEN_RE = /[a-z0-9]+(?:[.,][0-9]+)*/g;
+const PN_TOKEN_RE = /[a-z0-9]+(?:[.,][0-9]+)*|[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff\uac00-\ud7af]/g; // palavras latinas; ideogramas/kana um a um
 
 /* segmentos: [{ pagina, rotulo, origem: "pdf"|"ia"|"texto", texto }] */
 function pnIndexar(segmentos) {
@@ -7965,9 +8093,11 @@ function pnIndexar(segmentos) {
   segmentos.forEach((s, i) => {
     let pos = 0;
     for (const linha of String(s.texto).split("\n")) {
-      const m = linha.match(/^\s*(\d{1,2}(?:\.\d{1,3}){0,5})\.?\s+[A-ZÀ-Ý]/);
+      // Linhas de sumário ("5.4 Título .... 6" / "5.4 Título | 6") não abrem seção.
+      const ehSumario = /(?:\.{3,}|…|\s\|\s)\s*(?:\d{1,4}|[ivxlc]{1,6})\s*$/i.test(linha);
+      const m = !ehSumario && linha.match(/^[\s#*>]*(\d{1,2}(?:\.\d{1,3}){0,5})\.?\s+[A-ZÀ-Ý]/);
       if (m && !/^\d{1,2}\s+(de|of)\b/i.test(linha.trim())) titulos.push({ seg: i, pos, id: m[1], tipo: "secao" });
-      const a = linha.match(/^\s*(?:ANEXO|Anexo|ANNEX|Annex)\s+([A-Z])\b/);
+      const a = !ehSumario && linha.match(/^[\s#*>]*(?:ANEXO|Anexo|ANNEX|Annex)\s+([A-Z])\b/);
       if (a) titulos.push({ seg: i, pos, id: "Anexo " + a[1], tipo: "anexo" });
       pos += linha.length + 1;
     }
@@ -7978,11 +8108,55 @@ function pnIndexar(segmentos) {
 
 /* Localiza um trecho: literal (após normalização) ou aproximado por
    sobreposição de palavras (tolera quebras de tabela/OCR). */
-function pnLocalizarTrecho(idx, trecho) {
+/* pref (opcional): { pagina, enviado(loc) } — entre várias ocorrências do mesmo
+   texto (frases que se repetem em muitas cláusulas), escolhe a que a IA recebeu
+   e, entre essas, a da página informada. */
+function pnLocalizarTrecho(idx, trecho, pref) {
+  // Citação com reticências ("… shall not exceed … 75 °C"): cada parte precisa
+  // existir, na mesma página e perto uma da outra.
+  const partes = String(trecho || "").split(/\s*(?:\[\s*(?:\.{3}|…)\s*\]|\(\s*(?:\.{3}|…)\s*\)|\.{3,}|…)\s*/).map((x) => x.trim()).filter((x) => pnNormalizar(x, false).texto.trim().length >= 6);
+  if (partes.length > 1) {
+    const locs = partes.map((x) => pnLocalizarParte(idx, x, pref));
+    if (locs.every((l) => l && l.segmento === locs[0].segmento)) {
+      const ini = Math.min(...locs.map((l) => l.normIni)), fim = Math.max(...locs.map((l) => l.normFim));
+      if (fim - ini < 3000) {
+        const tipo = locs.some((l) => l.tipo === "parcial") ? "parcial" : locs.every((l) => l.tipo === "literal") ? "literal" : "aproximado";
+        return pnResultadoLocal(idx, ini, fim, tipo, Math.min(...locs.map((l) => l.score)) / 100);
+      }
+    }
+  }
+  return pnLocalizarParte(idx, trecho, pref);
+}
+function pnEscolherOcorrencia(locs, pref) {
+  if (!pref || locs.length < 2) return locs[0] || null;
+  const pag = parseInt(pref.pagina, 10);
+  const ok = (l) => !pref.enviado || pref.enviado(l);
+  return locs.find((l) => ok(l) && l.pagina === pag) || locs.find(ok) || locs.find((l) => l.pagina === pag) || locs[0];
+}
+function pnLocalizarParte(idx, trecho, pref) {
   const q = pnNormalizar(trecho, false).texto.trim();
   if (q.length < 6) return null;
   let i = idx.norm.indexOf(q);
-  if (i >= 0) return pnResultadoLocal(idx, i, i + q.length, "literal", 1);
+  if (i >= 0) {
+    if (!pref) return pnResultadoLocal(idx, i, i + q.length, "literal", 1);
+    const ok = (l) => !pref.enviado || pref.enviado(l);
+    const pag = parseInt(pref.pagina, 10);
+    // 1) na página informada; 2) a primeira ocorrência que a IA recebeu; 3) a primeira.
+    if (pag) for (let si = 0; si < idx.segmentos.length; si++) {
+      if (idx.segmentos[si].pagina !== pag) continue;
+      const fimSeg = si + 1 < idx.inicioSeg.length ? idx.inicioSeg[si + 1] : idx.norm.length;
+      for (let j = idx.norm.indexOf(q, idx.inicioSeg[si]); j >= 0 && j + q.length <= fimSeg; j = idx.norm.indexOf(q, j + 1)) {
+        const l = pnResultadoLocal(idx, j, j + q.length, "literal", 1);
+        if (ok(l)) return l;
+      }
+    }
+    const primeira = pnResultadoLocal(idx, i, i + q.length, "literal", 1);
+    for (let k = 0; i >= 0 && k < 20000; k++, i = idx.norm.indexOf(q, i + 1)) {
+      const l = k ? pnResultadoLocal(idx, i, i + q.length, "literal", 1) : primeira;
+      if (ok(l)) return l;
+    }
+    return primeira;
+  }
   const qt = q.match(PN_TOKEN_RE) || [];
   const n = qt.length;
   if (n < 3) return null;
@@ -7991,19 +8165,29 @@ function pnLocalizarTrecho(idx, trecho) {
   let rara = null, freq = Infinity, k = 0;
   qt.forEach((t, j) => { const f = (idx.posicoes.get(t) || []).length; if (f && f < freq) { freq = f; rara = t; k = j; } });
   if (!rara) return null;
+  // Janela com folga (≈ metade do trecho) para tolerar colunas de tabela
+  // reordenadas e quebras da extração; depois aparada nas palavras que casam.
+  const folga = Math.ceil(n * 0.5) + 3;
   let melhor = { score: 0 };
+  const empates = [];
   for (const p of (idx.posicoes.get(rara) || []).slice(0, 4000)) {
-    const ini = Math.max(0, p - k - 2), fim = Math.min(idx.tokens.length, p - k + n + 2);
+    const ini = Math.max(0, p - k - folga), fim = Math.min(idx.tokens.length, p - k + n + folga);
     const janela = new Map();
     for (let w = ini; w < fim; w++) janela.set(idx.tokens[w].t, (janela.get(idx.tokens[w].t) || 0) + 1);
     let comum = 0;
     contaQ.forEach((c, t) => { comum += Math.min(c, janela.get(t) || 0); });
     const score = comum / n;
-    if (score > melhor.score) melhor = { score, ini, fim };
+    if (score > melhor.score + 1e-9) { melhor = { score, ini, fim }; empates.length = 0; empates.push(melhor); }
+    else if (pref && Math.abs(score - melhor.score) < 1e-9 && empates.length < 300) empates.push({ score, ini, fim });
   }
   if (melhor.score < 0.6) return null;
-  const r = pnResultadoLocal(idx, idx.tokens[melhor.ini].ini, idx.tokens[melhor.fim - 1].fim, melhor.score >= 0.85 ? "aproximado" : "parcial", melhor.score);
-  return r;
+  const montar = (m) => {
+    let a = m.ini, z = m.fim - 1;
+    while (a < z && !contaQ.has(idx.tokens[a].t)) a++;
+    while (z > a && !contaQ.has(idx.tokens[z].t)) z--;
+    return pnResultadoLocal(idx, idx.tokens[a].ini, idx.tokens[z].fim, m.score >= 0.85 ? "aproximado" : "parcial", m.score);
+  };
+  return pnEscolherOcorrencia((pref ? empates : [melhor]).map(montar), pref);
 }
 function pnResultadoLocal(idx, ini, fim, tipo, score) {
   const seg = idx.segDoChar[Math.min(ini, idx.segDoChar.length - 1)];
@@ -8012,7 +8196,7 @@ function pnResultadoLocal(idx, ini, fim, tipo, score) {
   const secao = pnSecaoEm(idx, seg, pIni);
   const tabela = pnTabelaPerto(s.texto, pIni);
   return {
-    tipo, score: Math.round(score * 100), segmento: seg, pagina: s.pagina, rotulo: s.rotulo, origem: s.origem,
+    tipo, score: Math.round(score * 100), segmento: seg, pagina: s.pagina, impressa: s.impressa || "", rotulo: s.rotulo, origem: s.origem,
     normIni: ini, normFim: fim, ini: pIni, fim: pFim,
     trechoOriginal: s.texto.slice(pIni, pFim),
     contexto: s.texto.slice(Math.max(0, pIni - 700), Math.min(s.texto.length, pFim + 700)),
@@ -8058,6 +8242,8 @@ function pnNumerosAusentes(textoAfirmacao, textoFonte) {
   const fonte = new Set();
   for (const m of String(textoFonte || "").matchAll(/\d+(?:[ .,]\d+)*/g)) pnCanonNumero(m[0].trim()).forEach((x) => fonte.add(x));
   for (const m of String(textoFonte || "").matchAll(/\d+/g)) fonte.add(String(parseFloat(m[0])));
+  // Sem juntar por espaço: em tabelas "G30 2.8 kPa" é "30" e "2.8", não "30 2.8".
+  for (const m of String(textoFonte || "").matchAll(/\d+(?:[.,]\d+)*/g)) pnCanonNumero(m[0]).forEach((x) => fonte.add(x));
   return pnNumeros(textoAfirmacao).filter((n) => ![...pnCanonNumero(n)].some((x) => fonte.has(x)));
 }
 
@@ -8196,7 +8382,15 @@ function pnLerJson(texto) {
 }
 const pnArr = (v) => (Array.isArray(v) ? v : []);
 const pnStr = (v) => (v == null ? "" : String(v)).trim();
-const pnIdioma = () => ({ pt: "Escreva todos os textos em português do Brasil.", en: "Write all texts in English.", jp: "すべてのテキストを日本語で書いてください。" }[currentLang] || "Escreva todos os textos em português do Brasil.");
+/* Idioma das EXPLICAÇÕES. Citações literais e trechos de fonte ficam sempre no
+   idioma original: pedir "todos os textos em português" fazia o Gemini traduzir
+   as citações de normas em inglês, e a conferência local (pnLocalizarTrecho)
+   descartava tudo como "trecho inexistente". */
+const pnIdioma = () => ({
+  pt: "Escreva os textos explicativos em português do Brasil. Citações literais e trechos de fonte (citacao_literal, citacao_original, trecho_fonte, evidencia) permanecem no idioma ORIGINAL do documento/fonte, sem tradução.",
+  en: "Write explanatory texts in English. Literal quotes and source excerpts (citacao_literal, citacao_original, trecho_fonte, evidencia) stay in the ORIGINAL language of the document/source, untranslated.",
+  jp: "説明文は日本語で書いてください。逐語引用と出典の抜粋(citacao_literal, citacao_original, trecho_fonte, evidencia)は翻訳せず、文書・出典の原語のままにしてください。",
+}[currentLang] || "Escreva os textos explicativos em português do Brasil. Citações literais e trechos de fonte permanecem no idioma ORIGINAL do documento/fonte, sem tradução.");
 
 /* ---------- Prompts ---------- */
 const PN_REGRAS_COMUNS = [
@@ -8204,24 +8398,6 @@ const PN_REGRAS_COMUNS = [
   "Diferencie sempre: (a) o que a fonte diz expressamente; (b) explicações; (c) interpretações técnicas — estas nunca podem aparecer como exigência da norma.",
   "Quando algo não puder ser confirmado, diga isso explicitamente (\"não localizado\"/\"não confirmado\") em vez de completar a lacuna.",
 ];
-function pnPromptGeracaoA(norma, doc) {
-  return [
-    "[PESQUISADOR DE NORMAS · ETAPA=GERACAO · MODO=A]",
-    `Você é um especialista em normalização técnica apoiando um laboratório de P&D. Responda à PERGUNTA usando EXCLUSIVAMENTE o DOCUMENTO fornecido: ${pnRotuloNorma(norma) || "norma selecionada pelo usuário"}.`,
-    ...PN_REGRAS_COMUNS,
-    "REGRAS DESTE MODO (INVIOLÁVEIS):",
-    "1. A única fonte factual é o DOCUMENTO abaixo. Não use internet, outras normas, memória do modelo ou conhecimento geral para completar lacunas, mesmo que conheça o assunto ou normas relacionadas.",
-    "2. Cada afirmação factual vai em \"afirmacoes\", com \"citacao_literal\": cópia EXATA, caractere a caractere, do trecho do documento que a sustenta (prefira trechos de 8 a 60 palavras). Não parafraseie a citação.",
-    `3. Localização: ${doc.paginado ? "\"pagina\" = número do marcador === PÁGINA n === onde o trecho está" : "o documento não tem páginas; use \"pagina\": \"\" e informe o bloco em \"secao\" só se houver número de seção no texto"}; "secao" = número da seção/cláusula como aparece no documento; "tabela"/"anexo" só se o trecho estiver numa tabela/anexo identificado no texto. Deixe "" quando não tiver certeza — nunca invente.`,
-    "4. O que a pergunta pede e o documento não contém vai em \"nao_localizado\" (e a resposta preliminar diz que não foi localizado). Não deduza requisitos.",
-    "5. Registre notas, exceções e condições que alterem um requisito no campo \"notas_excecoes\" da afirmação.",
-    "6. Trechos marcados como transcrição por IA podem conter erros; páginas \"SEM TEXTO EXTRAÍVEL\" não puderam ser lidas — se isso afetar a resposta, registre em \"limitacoes\".",
-    "7. Na \"resposta_preliminar\", cite as afirmações pelo id entre colchetes, ex.: [A1].",
-    "FORMATO: responda SOMENTE com um objeto JSON válido, sem texto fora dele:",
-    '{"pergunta_resumo":"","documento_pertinente":true,"pertinencia_observacao":"","resposta_preliminar":"","afirmacoes":[{"id":"A1","categoria":"requisito|valor|metodo_ensaio|criterio_aprovacao|condicao|definicao|outro","texto":"","citacao_literal":"","pagina":"","secao":"","tabela":"","anexo":"","notas_excecoes":""}],"interpretacoes":[{"texto":"","base":["A1"],"justificativa":""}],"nao_localizado":[""],"limitacoes":[""]}',
-    pnIdioma(),
-  ].join("\n");
-}
 function pnPromptGeracaoB() {
   return [
     "[PESQUISADOR DE NORMAS · ETAPA=GERACAO · MODO=B]",
@@ -8242,7 +8418,8 @@ function pnPromptGeracaoB() {
 
 /* ---------- Etapas ---------- */
 const PN_ETAPAS = [
-  { id: "geracao", nome: () => tr3("Análise inicial", "Initial analysis", "初期分析"), desc: (m) => (m === "A" ? tr3("Gemini lê somente a norma selecionada", "Gemini reads only the selected standard", "選択した規格のみを読む") : tr3("Gemini pesquisa com o Google Search", "Gemini searches with Google Search", "Google 検索で調査")) },
+  { id: "preparo", soModo: "A", nome: () => tr3("Preparação do documento", "Document preparation", "文書の準備"), desc: () => tr3("Todas as páginas lidas; sem texto selecionável → leitura por imagem (OCR com IA); índice com página física e impressa", "All pages read; no selectable text → image reading (AI OCR); index with PDF and printed page", "全ページ読み取り・OCR・索引") },
+  { id: "geracao", nome: () => tr3("Análise inicial", "Initial analysis", "初期分析"), desc: (m) => (m === "A" ? tr3("Busca local (literal, sinônimos, outros idiomas, títulos e sumário) em rodadas; o Gemini lê só trechos da norma selecionada", "Local search (literal, synonyms, other languages, headings, contents) in rounds; Gemini reads only excerpts of the selected standard", "ローカル検索 → 選択規格の抜粋のみ") : tr3("Gemini pesquisa com o Google Search", "Gemini searches with Google Search", "Google 検索で調査")) },
   { id: "r1", nome: () => tr3("Revisão 1 — Verificação das fontes", "Review 1 — Source check", "レビュー1 — 情報源の確認"), desc: () => tr3("Fontes usadas, pertinência, procedência e qualidade", "Sources used, relevance, provenance, quality", "情報源・関連性・品質") },
   { id: "r2", nome: () => tr3("Revisão 2 — Conferência técnica e normativa", "Review 2 — Technical check", "レビュー2 — 技術的確認"), desc: (m) => (m === "A" ? tr3("Cada trecho localizado no documento; números, seções e tabelas conferidos", "Each excerpt located in the document; numbers, clauses, tables checked", "各抜粋を文書内で照合") : tr3("Nova pesquisa independente para cada afirmação e cada norma", "New independent search for each claim and standard", "各主張を再検索")) },
   { id: "r3", nome: () => tr3("Revisão 3 — Consistência e possíveis invenções", "Review 3 — Consistency and fabrication audit", "レビュー3 — 一貫性と捏造の監査"), desc: () => tr3("Contradições, inferências e afirmações sem sustentação", "Contradictions, inferences, unsupported claims", "矛盾・推論・根拠なし") },
@@ -8281,94 +8458,786 @@ async function pnRodarEtapa(ctx, id, fn) {
 const pnV = (item, resultado, detalhe) => ({ item, resultado, detalhe: detalhe || "" });
 
 /* ======================= MODO A ======================= */
-const PN_LIMITE_DOC = 450000; // caracteres enviados de uma vez (~110 mil tokens)
-const PN_STOP = new Set("para pela pelo como qual quais quando onde deve devem sobre entre com sem que dos das nos nas uma umas uns por mais menos este esta isso essa esse ser sao são the and for with what which when where must shall from that this into ensaio norma".split(" "));
-function pnPalavrasChave(t) {
-  return [...new Set((pnNormalizar(t, false).texto.match(/[a-z0-9]{4,}/g) || []).filter((w) => !PN_STOP.has(w)))];
+/* Como o Modo A encontra a informação (correção da busca):
+   1. Preparação: toda página sem texto selecionável (digitalizada, só marca
+      d'água, imagem com pouco texto) é lida por imagem pelo Gemini ANTES da
+      pesquisa, e a transcrição fica gravada na norma.
+   2. Índice local: o texto vira trechos (~1.100 caracteres) que guardam a
+      página física do PDF, a numeração impressa, a seção/título vigente e as
+      tabelas citadas. Sumário e títulos também são indexados.
+   3. Busca híbrida local: palavras da pergunta + glossário técnico PT/EN/ES +
+      radicais + termos que a IA sugere no idioma do documento (sem responder),
+      com reforço para títulos, sumário, cláusula/tabela pedidas e proximidade.
+   4. Rodadas: trechos mais relevantes → trechos adicionais → leitura integral
+      do restante. "Não localizado" só depois de ler todas as páginas legíveis.
+   5. O Gemini só interpreta os trechos recebidos; cada citação é copiada no
+      idioma ORIGINAL e conferida aqui (pnLocalizarTrecho). Citação traduzida
+      ou parafraseada passa por uma reancoragem no texto original. */
+const PN_LIMITE_DOC = 450000; // máx. de caracteres de documento por chamada (~110 mil tokens)
+const PN_ORCAMENTO_RODADAS = [30000, 70000]; // rodada 1 (focada) e 2 (ampliada)
+const PN_MAX_LOTES_INTEGRAIS = 4;
+const PN_CHUNK_ALVO = 1100;
+const PN_STOP = new Set(("para pela pelo pelos pelas como qual quais quanto quantos quanta quantas quando onde deve devem sobre entre com sem que dos das nos nas num numa uma umas uns por mais menos este esta isso essa esse estes estas ser sao esta estao tem ter existe existem ha cada todo toda todos todas " +
+  "seu sua seus suas qualquer informacao informacoes segundo conforme norma normas documento texto referente relacao respeito dados pode podem aplica aplicavel exigido exigida exigidos exigidas " +
+  "the and for with what which when where must shall from that this into are was were has have does how many much any all about according standard document text " +
+  "los las del una unos unas por con sin que cual cuales cuando donde debe deben segun sobre entre este esta estos estas es son").split(" "));
+/* Glossário técnico (normalizado: minúsculas, sem acento). Cada grupo reúne
+   termos equivalentes em PT/EN/ES; expressões com espaço são frases. */
+const PN_GLOSSARIO = [
+  ["temperatura", "temperaturas", "temperature", "temperatures"],
+  ["maxima", "maximo", "maximas", "maximos", "maximum", "max", "nao deve exceder", "nao pode exceder", "nao deve ultrapassar", "not exceed", "shall not exceed", "must not exceed", "no debe superar", "no debe exceder", "upper limit", "at most"],
+  ["minima", "minimo", "minimas", "minimos", "minimum", "min", "at least", "not less than", "pelo menos", "no inferior"],
+  ["permitida", "permitido", "admissivel", "permissivel", "permissible", "allowable", "admissible", "permitted", "admisible"],
+  ["limite", "limites", "limit", "limits", "limiting"],
+  ["saida", "outlet", "output", "exit", "delivery", "salida", "discharge"],
+  ["entrada", "inlet", "input", "supply", "alimentacao"],
+  ["agua", "water"],
+  ["agua quente", "hot water", "agua caliente", "domestic hot water"],
+  ["gas", "gases", "gaseous", "fuel gas", "combustivel"],
+  ["aquecedor", "aquecedores", "heater", "heaters", "water heater", "water heaters", "calentador", "calentadores", "aparelho", "aparelhos", "appliance", "appliances"],
+  ["aparelho", "aparelhos", "appliance", "appliances", "apparatus", "equipment", "equipamento", "aparato", "equipo"],
+  ["pressao", "pressoes", "pressure", "pressures", "presion"],
+  ["vazao", "vazoes", "flow", "flow rate", "caudal"],
+  ["potencia", "power", "heat input", "heat output", "rated input", "nominal heat input", "capacity", "capacidade"],
+  ["consumo", "consumption"],
+  ["eficiencia", "rendimento", "efficiency", "rendimiento"],
+  ["ensaio", "ensaios", "teste", "testes", "test", "tests", "testing", "ensayo", "ensayos", "prueba"],
+  ["metodo", "metodos", "method", "methods", "procedure", "procedimento", "procedimiento"],
+  ["requisito", "requisitos", "requirement", "requirements", "exigencia", "exigencias"],
+  ["criterio", "criterios", "criterion", "criteria", "aceitacao", "acceptance", "aprovacao", "compliance", "conformidade", "conformity"],
+  ["tolerancia", "tolerancias", "tolerance", "tolerances", "permissible deviation", "desvio"],
+  ["incerteza", "uncertainty", "precisao", "accuracy", "exatidao"],
+  ["medicao", "medicoes", "medir", "medida", "measurement", "measurements", "measure", "measured", "medicion"],
+  ["queimador", "queimadores", "burner", "burners", "quemador"],
+  ["chama", "chamas", "flame", "flames", "llama"],
+  ["piloto", "pilot"],
+  ["ignicao", "acendimento", "ignition", "lighting", "encendido"],
+  ["combustao", "combustion", "combustion"],
+  ["produtos da combustao", "gases de combustao", "gases queimados", "flue gas", "flue gases", "combustion products", "products of combustion", "exhaust gas", "productos de la combustion", "humos"],
+  ["chamine", "duto", "flue", "chimney", "vent", "flue duct", "chimenea", "conducto"],
+  ["exaustao", "exhaust", "evacuation", "evacuacao", "venting"],
+  ["tiragem", "draught", "draft", "tiro"],
+  ["defletor", "draught diverter", "draft hood", "cortatiro"],
+  ["monoxido", "monoxido de carbono", "carbon monoxide"],
+  ["dioxido de carbono", "carbon dioxide", "co2"],
+  ["estanqueidade", "vazamento", "vazamentos", "tightness", "soundness", "leak", "leakage", "leaks", "estanquidad", "fuga", "fugas"],
+  ["valvula", "valvulas", "valve", "valves"],
+  ["regulador", "reguladores", "regulator", "governor"],
+  ["injetor", "injetores", "injector", "injectors", "nozzle", "bocal", "inyector"],
+  ["termostato", "thermostat", "temperature selector", "seletor de temperatura"],
+  ["seletor", "selector", "setting", "ajuste", "regulagem", "adjustment"],
+  ["controle", "controles", "control", "controls", "comando"],
+  ["seguranca", "safety", "seguridad"],
+  ["dispositivo", "dispositivos", "device", "devices"],
+  ["superaquecimento", "overheat", "overheating", "sobrecalentamiento", "temperature limiter", "limitador de temperatura", "high limit"],
+  ["desligamento", "bloqueio", "shut-off", "shutdown", "lockout", "cut-off", "corte"],
+  ["sensor", "sensores", "sonda", "probe", "detector"],
+  ["termopar", "thermocouple", "termocupla"],
+  ["ventilacao", "ventilation", "ventilacion", "air supply", "aeracao"],
+  ["ambiente", "ambient", "room", "recinto"],
+  ["umidade", "humidity", "moisture", "humedad"],
+  ["ruido", "noise", "sound level", "nivel sonoro"],
+  ["eletrico", "eletrica", "electrical", "electric", "electrico"],
+  ["tensao", "voltage"],
+  ["isolamento", "insulation", "aislamiento"],
+  ["resistencia", "resistance", "strength"],
+  ["durabilidade", "endurance", "durability", "life test", "durabilidad"],
+  ["corrosao", "corrosion"],
+  ["material", "materiais", "materials", "materiales"],
+  ["vedacao", "seal", "gasket", "junta", "sealing"],
+  ["tubo", "tubulacao", "pipe", "piping", "tube", "tuberia"],
+  ["conexao", "conexoes", "connection", "connections", "fitting", "conexion"],
+  ["rosca", "roscas", "thread", "threads"],
+  ["dimensao", "dimensoes", "dimension", "dimensions"],
+  ["diametro", "diameter"],
+  ["comprimento", "length", "longitud"],
+  ["espessura", "thickness", "espesor"],
+  ["massa", "peso", "mass", "weight"],
+  ["tempo", "duracao", "time", "duration", "period", "tiempo"],
+  ["nominal", "rated", "declared", "declarado"],
+  ["classe", "classes", "class", "clase", "categoria", "category"],
+  ["glp", "lpg", "propano", "propane", "butano", "butane"],
+  ["gas natural", "natural gas", "metano", "methane"],
+  ["poder calorifico", "calorific value", "heating value", "indice de wobbe", "wobbe index"],
+  ["instalacao", "installation", "instalacion", "mounting", "montagem"],
+  ["marcacao", "marking", "markings", "rotulagem", "label", "labelling", "placa de identificacao", "data plate", "rating plate", "marcado"],
+  ["instrucoes", "instructions", "instrucciones", "manual"],
+  ["superficie", "superficies", "surface", "surfaces"],
+  ["domestico", "residencial", "domestic", "household", "residential"],
+  ["instantaneo", "instantaneous", "de passagem", "tankless"],
+  ["acumulacao", "storage", "acumulacion", "reservatorio", "tank"],
+  ["agua de saida", "outlet water", "water outlet", "agua de salida"],
+  ["temperatura de saida", "outlet temperature", "outlet water temperature", "temperatura de salida", "delivery temperature"],
+  ["anexo", "annex", "appendix", "apendice"],
+  ["tabela", "table", "tabla", "quadro"],
+  ["figura", "figure"],
+  ["nota", "notas", "note", "notes"],
+  ["definicao", "definicoes", "definition", "definitions", "termos", "terms", "definicion"],
+  ["escopo", "objetivo", "scope", "ambito", "alcance", "campo de aplicacao", "field of application"],
+  ["amostra", "amostras", "sample", "samples", "specimen", "muestra", "corpo de prova", "test piece"],
+  ["relatorio", "report", "informe"],
+  ["condicao", "condicoes", "condition", "conditions", "condiciones"],
+  ["estabilidade", "stability", "estabilidad"],
+  ["aquecimento", "heating", "calentamiento"],
+  ["resfriamento", "cooling", "enfriamiento"],
+  ["verificacao", "inspecao", "verification", "check", "inspection", "examination"],
+];
+const PN_GLOSS_IDX = (() => {
+  const m = new Map();
+  PN_GLOSSARIO.forEach((g, i) => g.forEach((t) => { if (!m.has(t)) m.set(t, []); m.get(t).push(i); }));
+  return m;
+})();
+const PN_CJK_RE = /[぀-ヿ㐀-鿿豈-﫿가-힯]/;
+/* Tokens de busca de um texto JÁ normalizado: palavras/números latinos e,
+   para japonês/chinês/coreano (sem espaços), pares de caracteres. */
+function pnTokensBusca(norm) {
+  const out = [];
+  for (const m of String(norm).matchAll(/[a-z0-9]+(?:[.,][0-9]+)*|[぀-ヿ㐀-鿿豈-﫿가-힯]+/g)) {
+    const w = m[0];
+    if (PN_CJK_RE.test(w[0])) { if (w.length === 1) out.push(w); for (let i = 0; i + 1 < w.length; i++) out.push(w.slice(i, i + 2)); }
+    else out.push(w);
+  }
+  return out;
 }
-/* Monta o documento a enviar. Se passar do limite, envia as páginas mais
-   relevantes para a pergunta e REGISTRA quais ficaram de fora. */
-function pnPrepararDocumentoA(norma, pergunta) {
+/* Radical grosseiro (5 letras) que aproxima EN/PT/ES: temperature/temperatura,
+   maximum/máxima, pressure/pressão. Peso baixo para não dominar a busca. */
+const pnRadical = (w) => (/^[a-z]{6,}$/.test(w) ? w.slice(0, 5) : "");
+function pnFormasBase(w) {
+  const f = new Set([w]);
+  if (w.length > 3 && w.endsWith("s")) f.add(w.slice(0, -1));
+  if (w.length > 4 && w.endsWith("es")) f.add(w.slice(0, -2));
+  if (w.endsWith("coes")) f.add(w.slice(0, -4) + "cao");
+  if (w.endsWith("oes")) f.add(w.slice(0, -3) + "ao");
+  if (w.endsWith("ais")) f.add(w.slice(0, -3) + "al");
+  [...f].forEach((x) => { if (/[ao]$/.test(x) && x.length > 3) f.add(x.slice(0, -1) + (x.endsWith("a") ? "o" : "a")); });
+  return [...f];
+}
+function pnGruposDe(termo) {
+  const g = new Set();
+  pnFormasBase(termo).forEach((f) => (PN_GLOSS_IDX.get(f) || []).forEach((i) => g.add(i)));
+  return [...g];
+}
+const pnTermoNorm = (t) => pnTokensBusca(pnNormalizar(t, false).texto).join(" ");
+const pnVariante = (termo, peso) => {
+  const t = pnTermoNorm(termo);
+  return t ? { t, peso, frase: t.includes(" "), radical: false } : null;
+};
+
+/* ---------- Estrutura do documento ---------- */
+const PN_RE_SECAO = /^[#*>\s]*(\d{1,2}(?:\.\d{1,3}){0,5})\.?\s+([A-ZÀ-Ý぀-ヿ㐀-鿿][^\n]{0,160})$/;
+const PN_RE_ANEXO = /^[#*>\s]*((?:ANEXO|Anexo|ANNEX|Annex|Anejo|ANEJO|Anhang|ANHANG|APPENDIX|Appendix|AP[ÊE]NDICE|Ap[êe]ndice)\s+[A-Z])\b[\s:.\-–—()a-z]*([^\n]{0,160})$/;
+const PN_RE_TABELA = /\b(Tabela|Table|Tabla|Quadro|Tableau|Tabelle)\s+([A-Z]?\.?\d+[A-Z]?(?:\.\d+)?)/i;
+const pnLimparTitulo = (s) => String(s || "").replace(/\s*\|\s*(?:\d{1,4}|[ivxlc]{1,6})\s*$/i, "").replace(/\s*(?:\.{2,}|…+)\s*(?:\d{1,4}|[ivxlc]{1,6})?\s*$/i, "").replace(/\s+\|\s+/g, " ").replace(/[*#]+/g, "").trim();
+function pnTituloDaLinha(linha) {
+  const l = String(linha || "").trim();
+  if (l.length > 170 || /(?:\.{3,}|…|\s\|\s)\s*(?:\d{1,4}|[ivxlc]{1,6})\s*$/i.test(l)) return null; // linha de sumário
+  let m = l.match(PN_RE_SECAO);
+  // Título "corrido" (5.1 General. Materials shall…): fica só o nome da seção.
+  const nome = (t) => { const x = pnLimparTitulo(t); return x.length > 70 ? x.split(/[.:;]\s/)[0].slice(0, 100) : x; };
+  if (m && !/^\d{1,2}\s+(de|of|del)\b/i.test(l)) return { id: m[1], titulo: nome(m[2]), tipo: "secao" };
+  m = l.match(PN_RE_ANEXO);
+  if (m) return { id: m[1].replace(/\s+/g, " ").replace(/^(ANEXO|ANNEX|ANEJO|ANHANG|APPENDIX|AP[ÊE]NDICE)/, (x) => x[0] + x.slice(1).toLowerCase()), titulo: nome(m[2]), tipo: "anexo" };
+  return null;
+}
+/* Sumário: página com título "Sumário/Contents/Índice…" (ou continuação) e
+   linhas "5.4 Título .... 6". Guarda a página IMPRESSA indicada. */
+function pnDetectarSumario(paginas) {
+  const entradas = [], pags = new Set();
+  const limite = Math.min(paginas.length, Math.max(8, Math.ceil(paginas.length * 0.2)));
+  let continuando = false;
+  for (let i = 0; i < limite; i++) {
+    const p = paginas[i];
+    const txt = [p.texto, p.textoIA].filter(Boolean).join("\n");
+    const temTitulo = /^[#*\s]*(sum[áa]rio|[íi]ndice|contents|table of contents|contenido|inhalt|inhaltsverzeichnis|sommaire|目次)[*\s]*$/im.test(txt);
+    const achadas = [];
+    for (const l of txt.split("\n")) {
+      const m = l.trim().replace(/[*#]+/g, "").match(/^((?:\d{1,2}(?:\.\d{1,3}){0,4})|(?:anexo|annex|anejo|appendix|ap[êe]ndice)\s+[A-Z])\.?\s+(.{2,160}?)(?:\s*(?:\.{2,}|…+)\s*|\s+\|\s+|\s+)(\d{1,4}|[ivxlc]{1,6})$/i);
+      if (m) achadas.push({ id: m[1].replace(/\s+/g, " "), titulo: pnLimparTitulo(m[2]), impressa: m[3].toLowerCase(), fisica: p.n, tipo: "sumario" });
+    }
+    if (temTitulo || (continuando && achadas.length >= 3)) { continuando = true; pags.add(p.n); entradas.push(...achadas); }
+    else continuando = false;
+  }
+  return { entradas, paginas: pags };
+}
+function pnDetectarIdioma(texto) {
+  const amostra = String(texto || "").slice(0, 80000);
+  const cjk = (amostra.match(/[぀-ヿ㐀-鿿]/g) || []).length;
+  if (cjk > 200 && cjk > amostra.length * 0.15) return /[぀-ヿ]/.test(amostra) ? "ja" : "zh";
+  const n = " " + pnTokensBusca(pnNormalizar(amostra, false).texto).join(" ") + " ";
+  const conta = (ws) => ws.reduce((s, w) => s + (n.split(" " + w + " ").length - 1), 0);
+  const sc = {
+    pt: conta(["nao", "sao", "deve", "devem", "com", "uma", "do", "da", "dos", "das", "em", "ao", "pelo", "pela"]),
+    en: conta(["the", "and", "shall", "of", "with", "to", "is", "be", "for", "which", "are"]),
+    es: conta(["el", "los", "las", "del", "debe", "deben", "con", "una", "por", "y", "se"]),
+    fr: conta(["le", "les", "des", "doit", "doivent", "avec", "une", "est", "et", "au"]),
+    de: conta(["der", "die", "das", "und", "muss", "mit", "ist", "werden", "nicht"]),
+  };
+  const [melhor, v] = Object.entries(sc).sort((a, b) => b[1] - a[1])[0];
+  return v >= 5 ? melhor : "";
+}
+const PN_IDIOMA_NOME = { pt: "português", en: "inglês", es: "espanhol", fr: "francês", de: "alemão", ja: "japonês", zh: "chinês" };
+
+/* Índice de busca da norma (local, refeito a cada pesquisa a partir do texto
+   gravado — inclui as transcrições por imagem). */
+function pnConstruirIndiceBusca(norma) {
+  const paginas = norma.paginas || [];
+  const recorrentes = pnLinhasRecorrentes(paginas);
+  const recorrentesIA = pnLinhasRecorrentes(paginas.filter((p) => (p.textoIA || "").trim()).map((p) => ({ texto: p.textoIA })));
+  const sumario = norma.paginado ? pnDetectarSumario(paginas) : { entradas: [], paginas: new Set() };
   const segmentos = [];
-  for (const p of norma.paginas) {
-    const rot = norma.paginado ? `p. ${p.n}` : tr3(`bloco ${p.n}`, `block ${p.n}`, `ブロック ${p.n}`);
-    const temTexto = (p.texto || "").replace(/\s/g, "").length >= 30;
-    if (temTexto) segmentos.push({ pagina: norma.paginado ? p.n : null, bloco: p.n, rotulo: rot, origem: "pdf", texto: p.texto });
-    if ((p.textoIA || "").trim()) segmentos.push({ pagina: norma.paginado ? p.n : null, bloco: p.n, rotulo: rot + tr3(" (transcrição IA)", " (AI transcription)", " (AI 転写)"), origem: "ia", texto: p.textoIA });
+  for (const p of paginas) {
+    const base = { pagina: norma.paginado ? p.n : null, bloco: p.n, impressa: p.impressa || "", rotulo: norma.paginado ? `p. ${p.n}` : tr3(`bloco ${p.n}`, `block ${p.n}`, `ブロック ${p.n}`) };
+    const temTexto = p.qualidade ? !p.qualidade.semTexto : (p.texto || "").replace(/\s/g, "").length >= 30;
+    if (temTexto) segmentos.push({ ...base, origem: "pdf", texto: p.texto });
+    if ((p.textoIA || "").trim()) segmentos.push({ ...base, rotulo: base.rotulo + tr3(" (transcrição IA)", " (AI transcription)", " (AI 転写)"), origem: "ia", texto: p.textoIA });
   }
-  const chaves = pnPalavrasChave(pergunta);
-  let enviados = segmentos.map((_, i) => i);
-  const total = segmentos.reduce((s, x) => s + x.texto.length, 0);
-  let selecao = null;
-  if (total > PN_LIMITE_DOC) {
-    const pont = segmentos.map((s, i) => {
-      const n = pnNormalizar(s.texto, false).texto;
-      return { i, score: chaves.reduce((acc, w) => acc + (n.split(w).length - 1), 0) + (i < 3 ? 1000 : 0) };
-    }).sort((a, b) => b.score - a.score);
-    const escolhidos = new Set();
-    let tam = 0;
-    for (const p of pont) {
-      if (tam + segmentos[p.i].texto.length > PN_LIMITE_DOC) continue;
-      escolhidos.add(p.i); tam += segmentos[p.i].texto.length;
+  const idx = pnIndexar(segmentos);
+  const chunks = [], titulos = [];
+  let secaoAtual = null;
+  segmentos.forEach((s, si) => {
+    const rec = s.origem === "ia" ? recorrentesIA : recorrentes;
+    const ehSumario = sumario.paginas.has(s.bloco);
+    let atual = null, pos = 0;
+    // Cabeçalho/rodapé/marca d'água: linha recorrente nas 3 primeiras ou 3 últimas linhas da página.
+    const naoVazias = String(s.texto).split("\n").map((l, i) => (l.trim() ? i : -1)).filter((i) => i >= 0);
+    const borda = new Set([...naoVazias.slice(0, 3), ...naoVazias.slice(-3)]);
+    let nLinha = -1;
+    const fechar = () => {
+      if (!atual || !atual.linhas.length) { atual = null; return; }
+      const norm = pnNormalizar(atual.linhas.join("\n"), false).texto;
+      const toks = pnTokensBusca(norm);
+      const tf = new Map(), tfRad = new Map();
+      toks.forEach((t) => { tf.set(t, (tf.get(t) || 0) + 1); const r = pnRadical(t); if (r) tfRad.set(r, (tfRad.get(r) || 0) + 1); });
+      const cabTxt = [atual.secao ? atual.secao.titulo : "", ...atual.titulos.map((x) => x.titulo)].join(" ");
+      const cabToks = pnTokensBusca(pnNormalizar(cabTxt, false).texto);
+      chunks.push({
+        id: chunks.length, seg: si, pagina: s.pagina, bloco: s.bloco, impressa: s.impressa, origem: s.origem,
+        ini: atual.ini, fim: atual.fim, texto: s.texto.slice(atual.ini, atual.fim), seq: " " + toks.join(" ") + " ", toks, tf, tfRad, len: toks.length || 1,
+        secao: atual.secao, titulos: atual.titulos, tabelas: [...new Set(atual.tabelas)], sumario: ehSumario,
+        cab: " " + cabToks.join(" ") + " ", cabRad: new Set(cabToks.map(pnRadical).filter(Boolean)),
+      });
+      atual = null;
+    };
+    for (const linha of String(s.texto).split("\n")) {
+      const ini = pos;
+      pos += linha.length + 1;
+      nLinha++;
+      if (!linha.trim() || (borda.has(nLinha) && rec.has(pnChaveLinha(linha)))) continue;
+      const tit = ehSumario ? null : pnTituloDaLinha(linha);
+      if (tit && atual && atual.tam >= 300) fechar();
+      if (tit) { secaoAtual = tit; titulos.push({ ...tit, pagina: s.pagina, bloco: s.bloco, impressa: s.impressa }); }
+      if (!atual) atual = { ini, fim: ini, linhas: [], tam: 0, secao: secaoAtual, titulos: [], tabelas: [] };
+      if (tit) atual.titulos.push(tit);
+      const tb = linha.match(PN_RE_TABELA);
+      if (tb) atual.tabelas.push(`${tb[1]} ${tb[2]}`);
+      atual.linhas.push(linha); atual.tam += linha.length + 1; atual.fim = ini + linha.length;
+      if (atual.tam >= PN_CHUNK_ALVO) fechar();
     }
-    enviados = [...escolhidos].sort((a, b) => a - b);
-    const fora = segmentos.filter((_, i) => !escolhidos.has(i)).map((s) => s.bloco);
-    selecao = { fora: [...new Set(fora)], enviadosChars: tam, totalChars: total };
-  }
-  const blocos = [];
-  for (const p of norma.paginas) {
-    const segsDaPagina = enviados.filter((i) => segmentos[i].bloco === p.n);
-    const marcador = norma.paginado ? `=== PÁGINA ${p.n} ===` : `=== BLOCO ${p.n} ===`;
-    if (!segsDaPagina.length) {
-      if (!(p.texto || "").replace(/\s/g, "").length && !(p.textoIA || "").trim()) blocos.push(`${marcador}\n[SEM TEXTO EXTRAÍVEL — página não pôde ser lida]`);
-      continue;
-    }
-    for (const i of segsDaPagina) {
-      const s = segmentos[i];
-      blocos.push(s.origem === "ia" ? `${marcador} [TRANSCRIÇÃO POR IA — pode conter erros]\n${s.texto}` : `${marcador}\n${s.texto}`);
-    }
-  }
-  return { segmentos, enviados: new Set(enviados), texto: blocos.join("\n\n"), selecao, chaves, paginado: norma.paginado };
+    fechar();
+  });
+  const df = new Map(), dfRad = new Map();
+  chunks.forEach((c) => { c.tf.forEach((_, t) => df.set(t, (df.get(t) || 0) + 1)); c.tfRad.forEach((_, r) => dfRad.set(r, (dfRad.get(r) || 0) + 1)); });
+  const legiveis = new Set(chunks.map((c) => c.bloco));
+  const porSeg = new Map();
+  chunks.forEach((c) => { if (!porSeg.has(c.seg)) porSeg.set(c.seg, []); porSeg.get(c.seg).push(c); });
+  const mapaTitulos = new Map();
+  [...titulos, ...sumario.entradas].forEach((t) => { if (t.titulo && !mapaTitulos.has(t.id)) mapaTitulos.set(t.id, t.titulo); });
+  return {
+    segmentos, idx, chunks, porSeg, df, dfRad, N: chunks.length, avgLen: chunks.reduce((s, c) => s + c.len, 0) / (chunks.length || 1),
+    titulos, sumario: sumario.entradas, paginasSumario: sumario.paginas, mapaTitulos,
+    idioma: pnDetectarIdioma(chunks.map((c) => c.texto).join("\n")),
+    legiveis, ilegiveis: paginas.filter((p) => !legiveis.has(p.n) && !(p.qualidade && p.qualidade.emBranco)).map((p) => p.n),
+    emBranco: paginas.filter((p) => !legiveis.has(p.n) && p.qualidade && p.qualidade.emBranco).map((p) => p.n),
+    totalChars: chunks.reduce((s, c) => s + c.texto.length, 0), paginado: norma.paginado,
+  };
 }
 
-async function pnGeracaoA(ctx) {
-  const doc = ctx.doc;
-  const r = await pnChamarGemini(pnPromptGeracaoA(ctx.norma, doc),
-    `PERGUNTA:\n${ctx.pergunta}\n\nDOCUMENTO (norma selecionada pelo usuário — única fonte permitida):\n${doc.texto}`,
-    "Pesquisador · Análise (Modo A)", { signal: ctx.signal, json: true, maxOutputTokens: 16384 });
+/* ---------- Consulta ---------- */
+function pnNovoConceito(orig, nucleo) { return { orig, nucleo, variantes: new Map() }; }
+function pnAddVariante(k, termo, peso) {
+  const v = pnVariante(termo, peso);
+  if (!v) return;
+  const atual = k.variantes.get(v.t);
+  if (!atual || atual.peso < peso) k.variantes.set(v.t, v);
+}
+function pnAddRadicais(k) {
+  [...k.variantes.values()].filter((v) => !v.frase).forEach((v) => {
+    const r = pnRadical(v.t);
+    if (r && !k.variantes.has("~" + r)) k.variantes.set("~" + r, { t: r, peso: 0.45, frase: false, radical: true });
+  });
+}
+function pnConsultaDaPergunta(pergunta, ind, extras) {
+  const qn = pnNormalizar(pergunta, false).texto;
+  const qtoks = pnTokensBusca(qn.replace(/[぀-ヿ㐀-鿿豈-﫿가-힯]+/g, " "));
+  const qseq = " " + qtoks.join(" ") + " ";
+  const consulta = { conceitos: [], frases: [], frasesIA: [], clausulas: [], tabelas: [], anexos: [], secoesIA: [], querValor: /\b(maxim|minim|limite|valor|quant|toleran|pressao|temperatura|tempo|vazao|potencia|maximum|minimum|limit|value|how much|tolerance|pressure|temperature)/.test(qn) };
+  for (const m of String(pergunta).matchAll(/["“”«»]([^"“”«»]{3,160})["“”«»]/g)) { const f = pnTermoNorm(m[1]); if (f) consulta.frases.push(f); }
+  for (const m of qn.matchAll(/(?:^|[^\d.,])(\d{1,2}(?:\.\d{1,3}){1,5})(?![\d.,]*\d)(?!\s*(?:kpa|mbar|bar|pa|mm|cm|m|kw|w|°c|c|%|l|min|s|h|v|hz)\b)/g)) consulta.clausulas.push(m[1]);
+  for (const m of qn.matchAll(/\b(?:tabela|table|tabla|quadro)\s+([a-z]?\.?\d+[a-z]?)/g)) consulta.tabelas.push(m[1]);
+  for (const m of qn.matchAll(/\b(?:anexo|annex|appendix|apendice|anejo)\s+([a-z])\b/g)) consulta.anexos.push(m[1].toUpperCase());
+  const usados = new Set();
+  const porGrupo = new Map();
+  const conceitoDoGrupo = (grupos, orig) => {
+    const chave = grupos.slice().sort((a, b) => a - b).join(",");
+    if (porGrupo.has(chave)) return porGrupo.get(chave);
+    const k = pnNovoConceito(orig, true);
+    grupos.forEach((g) => PN_GLOSSARIO[g].forEach((t) => pnAddVariante(k, t, 0.9)));
+    porGrupo.set(chave, k); consulta.conceitos.push(k);
+    return k;
+  };
+  // Expressões do glossário com mais de uma palavra presentes na pergunta.
+  PN_GLOSSARIO.forEach((g, gi) => g.filter((t) => t.includes(" ")).forEach((t) => {
+    const ft = pnTermoNorm(t);
+    const i = qseq.indexOf(" " + ft + " ");
+    if (i < 0) return;
+    const k = conceitoDoGrupo([gi], ft);
+    pnAddVariante(k, ft, 1);
+    const ini = qseq.slice(0, i + 1).trim().split(" ").filter(Boolean).length;
+    ft.split(" ").forEach((_, j) => usados.add(ini + j));
+  }));
+  qtoks.forEach((w, i) => {
+    if (usados.has(i) || PN_STOP.has(w) || (w.length < 3 && !/\d/.test(w)) || /^\d+([.,]\d+)*$/.test(w)) return;
+    const grupos = pnGruposDe(w);
+    const k = grupos.length ? conceitoDoGrupo(grupos, w) : (() => { const x = pnNovoConceito(w, true); consulta.conceitos.push(x); return x; })();
+    pnAddVariante(k, w, 1);
+  });
+  // Japonês/chinês: cada sequência vira um conceito de pares de caracteres.
+  for (const m of qn.matchAll(/[぀-ヿ㐀-鿿豈-﫿가-힯]{2,}/g)) {
+    const k = pnNovoConceito(m[0], true);
+    pnTokensBusca(m[0]).forEach((b) => k.variantes.set(b, { t: b, peso: 0.8, frase: false, radical: false }));
+    consulta.conceitos.push(k);
+  }
+  if (extras) pnAmpliarConsulta(consulta, extras, ind, 0.85);
+  consulta.conceitos.forEach(pnAddRadicais);
+  consulta.secoesToc = pnSecoesPorTitulo(consulta, ind);
+  return consulta;
+}
+/* Termos/seções sugeridos pela IA (expansão inicial ou "busca_adicional" de
+   uma rodada) entram como variantes dos conceitos — nunca como resposta. */
+function pnAmpliarConsulta(consulta, extras, ind, peso) {
+  const nucleos = consulta.conceitos.filter((k) => k.nucleo);
+  const casar = (txt) => {
+    const toks = pnTermoNorm(txt).split(" ").filter(Boolean);
+    return nucleos.filter((k) => toks.some((t) => k.variantes.has(t) || pnFormasBase(t).some((f) => k.variantes.has(f)) || pnGruposDe(t).some((g) => PN_GLOSSARIO[g].some((x) => k.variantes.has(pnTermoNorm(x))))));
+  };
+  for (const c of extras.conceitos || []) {
+    const alvos = casar(c.conceito);
+    const destino = alvos.length ? alvos : [(() => { const k = pnNovoConceito(pnTermoNorm(c.conceito) || c.termos[0], false); consulta.conceitos.push(k); return k; })()];
+    destino.forEach((k) => { c.termos.forEach((t) => pnAddVariante(k, t, peso)); pnAddRadicais(k); });
+  }
+  for (const t of extras.termos || []) {
+    const alvos = casar(t);
+    if (alvos.length) alvos.forEach((k) => { pnAddVariante(k, t, peso); pnAddRadicais(k); });
+    else { const k = pnNovoConceito(pnTermoNorm(t), false); pnAddVariante(k, t, peso); pnAddRadicais(k); if (k.variantes.size) consulta.conceitos.push(k); }
+  }
+  (extras.frases || []).map(pnTermoNorm).filter((f) => f.includes(" ")).forEach((f) => { if (!consulta.frasesIA.includes(f)) consulta.frasesIA.push(f); });
+  const existentes = new Set([...ind.titulos.map((t) => t.id), ...ind.sumario.map((t) => t.id)]);
+  (extras.secoes || []).map((s) => pnSoNumeroSecao(s) || String(s).trim()).filter((s) => existentes.has(s)).forEach((s) => { if (!consulta.secoesIA.includes(s)) consulta.secoesIA.push(s); });
+  consulta.secoesToc = pnSecoesPorTitulo(consulta, ind);
+}
+const pnVarianteEm = (seq, rad, v) => (v.radical ? rad.has(v.t) : seq.includes(" " + v.t + " "));
+/* Seções cujo TÍTULO (no corpo ou no sumário) cobre metade ou mais dos conceitos. */
+function pnSecoesPorTitulo(consulta, ind) {
+  const nucleos = consulta.conceitos.filter((k) => k.nucleo);
+  if (!nucleos.length) return new Map();
+  const out = new Map();
+  for (const t of [...ind.titulos, ...ind.sumario]) {
+    if (!t.titulo) continue;
+    const toks = pnTokensBusca(pnNormalizar(t.titulo, false).texto);
+    const seq = " " + toks.join(" ") + " ", rad = new Set(toks.map(pnRadical).filter(Boolean));
+    const cob = nucleos.filter((k) => [...k.variantes.values()].some((v) => pnVarianteEm(seq, rad, v))).length / nucleos.length;
+    if (cob >= 0.5 && (cob > (out.get(t.id) || 0))) out.set(t.id, cob);
+  }
+  return out;
+}
+
+/* ---------- Ranqueamento (BM25 + reforços) ---------- */
+function pnRanquear(ind, consulta) {
+  const k1 = 1.2, b = 0.75;
+  const dfCache = new Map();
+  const dfDe = (v) => {
+    if (!v.frase) return v.radical ? (ind.dfRad.get(v.t) || 0) : (ind.df.get(v.t) || 0);
+    if (!dfCache.has(v.t)) dfCache.set(v.t, ind.chunks.filter((c) => c.seq.includes(" " + v.t + " ")).length);
+    return dfCache.get(v.t);
+  };
+  const idf = (df) => Math.log(1 + (ind.N - df + 0.5) / (df + 0.5));
+  const tfDe = (c, v) => {
+    if (v.radical) return c.tfRad.get(v.t) || 0;
+    if (!v.frase) return c.tf.get(v.t) || 0;
+    return c.seq.split(" " + v.t + " ").length - 1;
+  };
+  const posDe = (c, v) => {
+    if (v.frase) { const p = []; const prim = v.t.split(" ")[0]; c.toks.forEach((t, i) => { if (t === prim && c.seq.includes(" " + v.t + " ")) p.push(i); }); return p; }
+    const p = [];
+    c.toks.forEach((t, i) => { if (v.radical ? pnRadical(t) === v.t : t === v.t) p.push(i); });
+    return p;
+  };
+  const nucleos = consulta.conceitos.filter((k) => k.nucleo).length;
+  const out = [];
+  for (const c of ind.chunks) {
+    let base = 0, cobertos = 0;
+    const motivos = [], achados = [];
+    for (const k of consulta.conceitos) {
+      let melhor = 0, melhorV = null, cab = 0;
+      for (const v of k.variantes.values()) {
+        const tf = tfDe(c, v);
+        const w = v.peso * idf(dfDe(v));
+        if (tf) { const s = w * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * c.len / ind.avgLen)); if (s > melhor) { melhor = s; melhorV = v; } }
+        if (pnVarianteEm(c.cab, c.cabRad, v)) cab = Math.max(cab, w);
+      }
+      const sc = melhor + 0.8 * cab;
+      if (sc > 0) {
+        base += sc * (k.nucleo ? 1 : 0.6);
+        if (k.nucleo) cobertos++;
+        motivos.push(melhorV ? (melhorV.radical ? melhorV.t + "…" : melhorV.t) : k.orig);
+        if (melhorV) achados.push(melhorV);
+      }
+    }
+    const cobertura = nucleos ? cobertos / nucleos : 1;
+    let score = base * (0.25 + 0.75 * Math.pow(cobertura, 1.5));
+    // Proximidade: conceitos diferentes a até 4 palavras um do outro.
+    if (achados.length > 1) {
+      const pos = achados.slice(0, 6).map((v) => posDe(c, v));
+      let pares = 0;
+      for (let i = 0; i < pos.length; i++) for (let j = i + 1; j < pos.length; j++) if (pos[i].some((a) => pos[j].some((x) => Math.abs(a - x) <= 4))) pares++;
+      score += Math.min(3, pares) * 1.2;
+    }
+    const extras = [];
+    for (const f of consulta.frases) if (c.seq.includes(" " + f + " ")) { score += 8; extras.push(`"${f}"`); }
+    for (const f of consulta.frasesIA) if (c.seq.includes(" " + f + " ")) { score += 3; extras.push(`"${f}"`); }
+    const sec = c.secao ? c.secao.id : "";
+    const naSecao = (id) => !!sec && (sec === id || sec.startsWith(id + ".")) || c.titulos.some((t) => t.id === id);
+    for (const cl of consulta.clausulas) { if (naSecao(cl)) { score += 6; extras.push(tr3("seção ", "clause ", "節 ") + cl); } else if (c.seq.includes(" " + cl + " ")) score += 1.5; }
+    for (const tb of consulta.tabelas) if (c.tabelas.some((x) => x.toLowerCase().endsWith(" " + tb)) || new RegExp(`\\b(?:table|tabela|tabla|quadro) ${tb.replace(/\./g, "\\.")}\\b`).test(c.seq)) { score += 5; extras.push(tr3("tabela ", "table ", "表 ") + tb); }
+    for (const an of consulta.anexos) if (naSecao("Anexo " + an) || naSecao("Annex " + an) || /^(anexo|annex|anejo|appendix)/i.test(sec) && sec.endsWith(" " + an)) { score += 4; extras.push(tr3("anexo ", "annex ", "附属書 ") + an); }
+    for (const [id, cob] of consulta.secoesToc) if (naSecao(id)) { score += 3 * cob; extras.push(tr3("título/sumário ", "heading/contents ", "見出し ") + id); break; }
+    for (const id of consulta.secoesIA) if (naSecao(id)) { score += 2.5; break; }
+    if (score > 0 && consulta.querValor) {
+      if (/\d\s*(?:°\s*C|ºC|K\b|kPa|Pa\b|mbar|bar\b|mm\b|cm\b|kW|W\b|%|l\/min|L\/min|min\b|s\b|ppm|dB|V\b|Hz)/.test(c.texto)) score += 0.6;
+      if (/ (shall|must|deve|devem|debe|deben|not exceed|nao deve|nao pode) /.test(c.seq)) score += 0.4;
+    }
+    if (c.sumario) score *= 0.6; // o sumário aponta para a seção, mas não contém o requisito
+    if (score > 0.01) out.push({ c, score, motivos: [...new Set([...motivos, ...extras])] });
+  }
+  return out.sort((a, b) => b.score - a.score || a.c.id - b.c.id);
+}
+/* Escolhe os trechos da rodada até o orçamento, com o trecho anterior e o
+   seguinte como contexto (notas, continuação da tabela, fim da cláusula). */
+function pnSelecionarTrechos(ind, ranking, orcamento, jaEnviados) {
+  const escolhidos = new Set();
+  let tam = 0;
+  for (const r of ranking) {
+    if (tam >= orcamento) break;
+    if (jaEnviados.has(r.c.id)) continue;
+    const grupo = [r.c.id];
+    const ant = ind.chunks[r.c.id - 1], prox = ind.chunks[r.c.id + 1];
+    if (ant && ant.seg === r.c.seg) grupo.unshift(ant.id);
+    if (prox && (prox.seg === r.c.seg || prox.bloco === r.c.bloco + 1)) grupo.push(prox.id);
+    const novos = grupo.filter((id) => !escolhidos.has(id) && !jaEnviados.has(id));
+    const add = novos.reduce((s, id) => s + ind.chunks[id].texto.length, 0);
+    if (escolhidos.size && tam + add > orcamento * 1.15) continue;
+    novos.forEach((id) => escolhidos.add(id));
+    tam += add;
+  }
+  return [...escolhidos].sort((a, b) => a - b);
+}
+/* Texto enviado ao Gemini: trechos contíguos da mesma página são unidos; cada
+   bloco traz a página FÍSICA do PDF, a página impressa e a seção vigente. */
+function pnTextoParaIA(ind, ids) {
+  const blocos = [];
+  let atual = null;
+  for (const id of ids) {
+    const c = ind.chunks[id];
+    if (atual && atual.seg === c.seg && atual.ultimo === id - 1) { atual.fim = c.fim; atual.ultimo = id; continue; }
+    atual = { seg: c.seg, ini: c.ini, fim: c.fim, ultimo: id, c };
+    blocos.push(atual);
+  }
+  return blocos.map((bl) => {
+    const s = ind.segmentos[bl.seg], c = bl.c;
+    const secao = c.secao ? ` · seção ${c.secao.id}${c.secao.titulo ? " " + c.secao.titulo : ""}` : "";
+    const cab = ind.paginado ? `=== PÁGINA ${s.pagina} (PDF)${s.impressa ? ` · página impressa ${s.impressa}` : ""}${secao} ===` : `=== BLOCO ${s.bloco}${secao} ===`;
+    return `${cab}${s.origem === "ia" ? " [TRANSCRIÇÃO POR IA — pode conter erros]" : ""}\n${s.texto.slice(bl.ini, bl.fim)}`;
+  }).join("\n\n");
+}
+const pnPaginasDosTrechos = (ind, ids) => [...new Set(ids.map((id) => ind.chunks[id].bloco))].sort((a, b) => a - b);
+/* O trecho localizado estava no que a IA recebeu? (todo trecho do índice que
+   ele toca precisa ter sido enviado) */
+function pnTrechoEnviado(ctx, loc) {
+  const toca = (ctx.indice.porSeg.get(loc.segmento) || []).filter((c) => c.ini < loc.fim && loc.ini < c.fim + 1);
+  return toca.length > 0 && toca.every((c) => ctx.busca.enviados.has(c.id));
+}
+const pnLocalizadoOk = (ctx, trecho, pagina) => {
+  const l = trecho ? pnLocalizarTrecho(ctx.idx, trecho, { pagina, enviado: (x) => pnTrechoEnviado(ctx, x) }) : null;
+  return !!l && l.tipo !== "parcial" && pnTrechoEnviado(ctx, l);
+};
+function pnConceitoNoDocumento(ind, k) {
+  return [...k.variantes.values()].some((v) => (v.radical ? ind.dfRad.has(v.t) : v.frase ? ind.chunks.some((c) => c.seq.includes(" " + v.t + " ")) : ind.df.has(v.t)));
+}
+
+/* ---------- Etapa 0: preparação (OCR automático + índice) ---------- */
+async function pnPreparoA(ctx) {
+  const et = ctx.etapas.find((e) => e.id === "preparo");
+  const v = [];
+  let norma = pnNormaAtualizada(pnNormas.find((x) => x.id === ctx.norma.id) || ctx.norma);
+  const pendentes = norma.paginas.filter(pnPrecisaOcr).map((p) => p.n);
+  const jaTranscritas = norma.paginas.filter((p) => (p.textoIA || "").trim()).map((p) => p.n);
+  let ocr = null;
+  if (pendentes.length && norma.tipo === "pdf" && norma.blob && norma.paginado) {
+    ocr = await pnOcrPaginas(norma, pendentes, {
+      signal: ctx.signal, automatico: true, paralelo: 2,
+      progresso: (s) => { et.progresso = tr3(`Lendo por imagem (OCR) a página ${s.atual} — ${s.feitas + s.falhas}/${s.total} concluída(s)`, `Reading page ${s.atual} as an image (OCR) — ${s.feitas + s.falhas}/${s.total} done`, `OCR ${s.atual} — ${s.feitas + s.falhas}/${s.total}`); pnRenderEtapas(ctx); },
+    });
+    norma = ocr.norma;
+    if (ctx.signal.aborted || (ocr.interrompido && ocr.interrompido.name === "AbortError")) { const a = new Error("Cancelado pelo usuário."); a.name = "AbortError"; throw a; }
+  }
+  et.progresso = "";
+  ctx.norma = norma;
+  ctx.ocr = { pendentes, feitas: ocr ? ocr.feitas.map((f) => f.num) : [], falhas: ocr ? ocr.falhas : [], semArquivo: pendentes.length > 0 && !ocr, erro: ocr && ocr.interrompido ? ocr.interrompido.message : "", erroGravar: ocr && ocr.erroGravar ? ocr.erroGravar.message : "" };
+  ctx.indice = pnConstruirIndiceBusca(norma);
+  ctx.idx = ctx.indice.idx;
+  const ind = ctx.indice;
+  if (!ind.chunks.length) throw fatal(tr3(`Nenhuma página do documento pôde ser lida (sem texto selecionável e sem leitura por imagem${ctx.ocr.erro ? ": " + ctx.ocr.erro : ctx.ocr.semArquivo ? " — o PDF original não está guardado neste navegador" : ""}). Não há conteúdo para pesquisar.`, `No page could be read (no selectable text and no image reading${ctx.ocr.erro ? ": " + ctx.ocr.erro : ""}).`, "読み取れるページがありません。"));
+  const nPag = norma.paginas.length;
+  v.push(pnV(tr3("Páginas com texto selecionável", "Pages with selectable text", "テキストのあるページ"), "ok", `${norma.paginas.filter((p) => !p.qualidade.semTexto).length}/${nPag}`));
+  if (pendentes.length) {
+    const falhas = ctx.ocr.falhas.map((f) => f.num);
+    v.push(pnV(tr3("Leitura por imagem (OCR com IA)", "Image reading (AI OCR)", "画像読み取り (AI OCR)"), falhas.length || ctx.ocr.semArquivo ? "alerta" : "ok",
+      ctx.ocr.semArquivo ? tr3(`${pnFaixas(pendentes)} precisam de leitura por imagem, mas o PDF original não está guardado neste navegador — use "Substituir" com o PDF.`, `${pnFaixas(pendentes)} need image reading, but the original PDF is not stored — use "Replace".`, "元の PDF がありません。")
+        : tr3(`${ctx.ocr.feitas.length} página(s) lida(s) agora por imagem (${pnFaixas(ctx.ocr.feitas) || "—"})${falhas.length ? `; falharam: ${pnFaixas(falhas)} (${ctx.ocr.falhas[ctx.ocr.falhas.length - 1].erro})` : ""}. Transcrições gravadas na norma.`, `${ctx.ocr.feitas.length} page(s) read as images now${falhas.length ? `; failed: ${pnFaixas(falhas)}` : ""}.`, `${ctx.ocr.feitas.length} ページ OCR`)));
+    if (ctx.ocr.erroGravar) v.push(pnV(tr3("Gravação das transcrições", "Saving transcriptions", "転写の保存"), "alerta", tr3(`As transcrições valem para esta pesquisa, mas não puderam ser gravadas: ${ctx.ocr.erroGravar}`, `Transcriptions are used in this search but could not be saved: ${ctx.ocr.erroGravar}`, ctx.ocr.erroGravar)));
+  }
+  if (jaTranscritas.length) v.push(pnV(tr3("Transcrições anteriores", "Earlier transcriptions", "既存の転写"), "ok", tr3(`páginas ${pnFaixas(jaTranscritas)} já tinham leitura por imagem gravada`, `pages ${pnFaixas(jaTranscritas)} already had saved image readings`, pnFaixas(jaTranscritas))));
+  if (ind.ilegiveis.length) v.push(pnV(tr3("Páginas ilegíveis", "Unreadable pages", "判読不能なページ"), "alerta", tr3(`${pnFaixas(ind.ilegiveis)} — sem conteúdo legível; não podem ser pesquisadas`, `${pnFaixas(ind.ilegiveis)} — no readable content`, pnFaixas(ind.ilegiveis))));
+  const impressas = norma.paginas.filter((p) => p.impressa).length;
+  if (norma.paginado) v.push(pnV(tr3("Numeração impressa × página do PDF", "Printed numbering × PDF page", "印刷ページ番号"), "ok", impressas ? tr3(`numeração impressa identificada em ${impressas}/${nPag} página(s); as referências trazem as duas`, `printed numbering found on ${impressas}/${nPag} page(s); references show both`, `${impressas}/${nPag}`) : tr3("numeração impressa não identificada — as referências usam a página física do PDF", "printed numbering not found — references use the PDF page", "印刷番号なし")));
+  v.push(pnV(tr3("Índice de busca", "Search index", "検索索引"), "ok", tr3(`${ind.chunks.length} trecho(s) em ${ind.legiveis.size} ${norma.paginado ? "página(s)" : "bloco(s)"}; ${ind.titulos.length} título(s) de seção; sumário: ${ind.sumario.length ? ind.sumario.length + " entrada(s)" : "não identificado"}; idioma do documento: ${PN_IDIOMA_NOME[ind.idioma] || "não identificado"}`, `${ind.chunks.length} chunk(s) on ${ind.legiveis.size} page(s); ${ind.titulos.length} heading(s); contents: ${ind.sumario.length || "none"}; language: ${ind.idioma || "unknown"}`, `${ind.chunks.length} チャンク`)));
+  return { resumo: tr3(`${ind.legiveis.size}/${nPag} ${norma.paginado ? "página(s)" : "bloco(s)"} legível(is) e indexada(s)${ctx.ocr.feitas.length ? `, ${ctx.ocr.feitas.length} por leitura de imagem` : ""}.`, `${ind.legiveis.size}/${nPag} readable and indexed${ctx.ocr.feitas.length ? `, ${ctx.ocr.feitas.length} via image reading` : ""}.`, `${ind.legiveis.size}/${nPag} 索引済み`), verificacoes: v, chamadasIA: ocr ? ocr.chamadas : 0 };
+}
+
+/* ---------- Etapa 1: busca + análise inicial (rodadas) ---------- */
+async function pnExpandirConsultaIA(ctx) {
+  const ind = ctx.indice;
+  const vistos = new Set();
+  const lista = [...ind.sumario, ...ind.titulos].filter((t) => t.titulo && !vistos.has(t.id) && vistos.add(t.id))
+    .map((t) => `${t.id} ${t.titulo}`).join("\n").slice(0, 15000);
+  const amostra = ind.chunks.slice(0, 3).map((c) => c.texto).join("\n").slice(0, 1500);
+  const sys = [
+    "[PESQUISADOR DE NORMAS · ETAPA=EXPANSAO · MODO=A]",
+    "Você prepara uma BUSCA LOCAL dentro de um documento normativo. NÃO responda à pergunta e não afirme nada sobre o conteúdo do documento: gere apenas termos de busca.",
+    "Para cada conceito importante da PERGUNTA, liste termos equivalentes NO IDIOMA DO DOCUMENTO (veja a amostra) e também em inglês: sinônimos técnicos, formas usuais em normas (ex.: \"shall not exceed\", \"maximum\", \"não deve exceder\"), siglas e grafias alternativas.",
+    "\"frases_provaveis\": expressões curtas (2 a 6 palavras) que provavelmente aparecem literalmente no texto que responde à pergunta.",
+    "\"secoes_provaveis\": somente números de seção/anexo que EXISTAM na lista de títulos fornecida e que provavelmente tratem do assunto.",
+    'Responda SOMENTE com JSON: {"idioma_documento":"","pergunta_no_idioma_do_documento":"","conceitos":[{"conceito":"","termos":[""]}],"frases_provaveis":[""],"secoes_provaveis":[""]}',
+  ].join("\n");
+  const entrada = `PERGUNTA:\n${ctx.pergunta}\n\nAMOSTRA DO INÍCIO DO DOCUMENTO:\n${amostra}\n\nTÍTULOS E SUMÁRIO DO DOCUMENTO:\n${lista || "(nenhum título identificado)"}`;
+  const r = await pnChamarGemini(sys, entrada, "Pesquisador · Expansão da busca (Modo A)", { signal: ctx.signal, json: true, maxOutputTokens: 4096 });
   if (r.grounding && (r.grounding.groundingChunks || []).length) throw fatal("Inconsistência: houve busca externa no Modo A. Resultado descartado.");
   const j = pnLerJson(r.texto);
-  const afirmacoes = pnArr(j.afirmacoes).map((a, i) => ({
-    id: /^A\d+$/.test(pnStr(a.id)) ? pnStr(a.id) : `A${i + 1}`,
-    categoria: pnStr(a.categoria) || "outro", texto: pnStr(a.texto), trecho: pnStr(a.citacao_literal),
-    ref: { pagina: pnStr(a.pagina), secao: pnStr(a.secao), tabela: pnStr(a.tabela), anexo: pnStr(a.anexo) },
-    notas: pnStr(a.notas_excecoes), status: "pendente", problemas: [], historico: [],
-  })).filter((a) => a.texto);
-  ctx.ger = {
-    perguntaResumo: pnStr(j.pergunta_resumo), pertinente: j.documento_pertinente !== false, pertinenciaObs: pnStr(j.pertinencia_observacao),
-    respostaPreliminar: pnStr(j.resposta_preliminar), interpretacoes: pnArr(j.interpretacoes), naoLocalizado: pnArr(j.nao_localizado).map(pnStr).filter(Boolean),
-    limitacoes: pnArr(j.limitacoes).map(pnStr).filter(Boolean), modelo: r.modelo,
+  const termosPergunta = pnTermoNorm(pnStr(j.pergunta_no_idioma_do_documento)).split(" ").filter((w) => w.length >= 4 && !PN_STOP.has(w));
+  return {
+    idioma: pnStr(j.idioma_documento),
+    conceitos: pnArr(j.conceitos).map((c) => ({ conceito: pnStr(c && c.conceito), termos: pnArr(c && c.termos).map(pnStr).filter(Boolean).slice(0, 12) })).filter((c) => c.termos.length).slice(0, 14),
+    termos: termosPergunta.slice(0, 12),
+    frases: pnArr(j.frases_provaveis).map(pnStr).filter(Boolean).slice(0, 10),
+    secoes: pnArr(j.secoes_provaveis).map(pnStr).filter(Boolean).slice(0, 10),
   };
-  ctx.afirmacoes = afirmacoes;
-  return { resumo: tr3(`${afirmacoes.length} afirmação(ões) extraída(s) do documento para verificação.`, `${afirmacoes.length} claim(s) extracted for verification.`, `${afirmacoes.length} 件の主張を抽出。`), chamadasIA: 1,
-    verificacoes: [pnV(tr3("Documento enviado", "Document sent", "送信文書"), "ok", `${pnRotuloNorma(ctx.norma)} · ${doc.texto.length.toLocaleString("pt-BR")} ${tr3("caracteres", "characters", "文字")}`), pnV(tr3("Busca na internet", "Web search", "ウェブ検索"), "ok", tr3("desligada (nenhuma ferramenta de busca enviada)", "off (no search tool sent)", "オフ"))] };
+}
+function pnPromptGeracaoA(norma, ind, rodada) {
+  const totalPag = ind.legiveis.size;
+  const descricao = rodada.integral
+    ? tr3(`Você recebeu o texto INTEGRAL de todas as ${totalPag} ${ind.paginado ? "páginas" : "partes"} legíveis do documento.`, `You received the FULL text of all ${totalPag} readable pages.`, "文書全体")
+    : rodada.tipo === "lote"
+      ? `Você recebeu a PARTE ${rodada.lote} de ${rodada.lotes} da leitura integral do documento (as demais partes são lidas em outras chamadas).`
+      : rodada.tipo === "restante"
+        ? "Você recebeu TODO o restante do documento que ainda não tinha sido lido; as demais partes foram lidas em rodadas anteriores sem encontrar a resposta completa."
+      : `Os TRECHOS abaixo foram recuperados automaticamente por uma busca local em todo o documento (${totalPag} ${ind.paginado ? "páginas" : "partes"} legíveis) — rodada ${rodada.n}, ${rodada.tipo === "focada" ? "trechos mais relevantes" : "trechos adicionais"}. Eles podem não conter a resposta.`;
+  return [
+    `[PESQUISADOR DE NORMAS · ETAPA=GERACAO · MODO=A · RODADA=${rodada.n}]`,
+    `Você é um especialista em normalização técnica apoiando um laboratório de P&D. Responda à PERGUNTA usando EXCLUSIVAMENTE o texto do DOCUMENTO fornecido: ${pnRotuloNorma(norma) || "norma selecionada pelo usuário"}.`,
+    descricao,
+    ...PN_REGRAS_COMUNS,
+    "REGRAS DESTE MODO (INVIOLÁVEIS):",
+    "1. A única fonte factual é o texto do DOCUMENTO abaixo. Não use internet, outras normas, memória do modelo ou conhecimento geral para completar lacunas, mesmo que conheça o assunto.",
+    "2. A pergunta pode estar em idioma diferente do documento: procure pelo SENTIDO técnico (termos equivalentes, sinônimos, títulos de seção, tabelas e notas), não só por palavras iguais.",
+    "3. Cada afirmação factual vai em \"afirmacoes\". \"citacao_literal\" = cópia EXATA, caractere a caractere, do trecho do documento que a sustenta, NO IDIOMA ORIGINAL DO DOCUMENTO (prefira 8 a 60 palavras). Nunca traduza, resuma ou parafraseie a citação.",
+    `4. \"traducao\" = tradução fiel da citação para ${({ en: "inglês", jp: "japonês" })[currentLang] || "português do Brasil"}, sem acrescentar nada; deixe "" se o documento já estiver nesse idioma.`,
+    `5. Localização: ${ind.paginado ? "\"pagina\" = número N do marcador \"=== PÁGINA N (PDF) …\" onde o trecho está (página física do arquivo, não a numeração impressa)" : "o documento não tem páginas; use \"pagina\": \"\""}; "secao" = número da seção/cláusula como aparece no documento; "tabela"/"anexo" só se o trecho estiver numa tabela/anexo identificado no texto. Deixe "" quando não tiver certeza — nunca invente.`,
+    "6. Registre notas, exceções e condições que alterem um requisito em \"notas_excecoes\".",
+    `7. "informacao_encontrada": "sim" se o texto recebido responde à pergunta; "parcial" se responde só em parte; "nao" se não responde.${rodada.integral ? "" : " Como você não viu o documento inteiro, NÃO conclua que o documento não contém a informação: em \"busca_adicional\" indique termos (no idioma do documento) e números de seção/tabela que deveriam ser procurados no restante."}`,
+    "8. O que a pergunta pede e o texto recebido não contém vai em \"nao_localizado\". Não deduza requisitos.",
+    "9. Trechos marcados como transcrição por IA podem conter erros de leitura. Na \"resposta_preliminar\", cite as afirmações pelo id entre colchetes, ex.: [A1].",
+    ...(rodada.jaLocalizado && rodada.jaLocalizado.length ? ["JÁ LOCALIZADO EM RODADAS ANTERIORES (não repita; procure o que ainda falta):", ...rodada.jaLocalizado.map((x) => `- ${x}`)] : []),
+    ...(rodada.faltando && rodada.faltando.length ? ["AINDA NÃO LOCALIZADO:", ...rodada.faltando.map((x) => `- ${x}`)] : []),
+    "FORMATO: responda SOMENTE com um objeto JSON válido, sem texto fora dele:",
+    '{"pergunta_resumo":"","documento_pertinente":true,"pertinencia_observacao":"","informacao_encontrada":"sim|parcial|nao","resposta_preliminar":"","afirmacoes":[{"id":"A1","categoria":"requisito|valor|metodo_ensaio|criterio_aprovacao|condicao|definicao|outro","texto":"","citacao_literal":"","traducao":"","pagina":"","secao":"","tabela":"","anexo":"","notas_excecoes":""}],"interpretacoes":[{"texto":"","base":["A1"],"justificativa":""}],"nao_localizado":[""],"limitacoes":[""],"busca_adicional":{"termos":[""],"secoes":[""]}}',
+    pnIdioma(),
+  ].join("\n");
+}
+/* Citação que não existe literalmente no documento (traduzida/parafraseada):
+   pede ao Gemini o trecho ORIGINAL equivalente dentro do texto já enviado. */
+async function pnReancorarA(ctx, afirmacoes, ids) {
+  const sys = [
+    "[PESQUISADOR DE NORMAS · ETAPA=REANCORAGEM · MODO=A]",
+    "As afirmações abaixo citaram trechos que NÃO foram encontrados literalmente no documento (provavelmente foram traduzidos, resumidos ou parafraseados).",
+    "Para cada afirmação, COPIE do TEXTO DO DOCUMENTO abaixo o trecho ORIGINAL que a sustenta: no idioma do documento, caractere a caractere, de 8 a 60 palavras. Não traduza, não resuma, não corrija, não junte partes distantes.",
+    "Se nenhum trecho do texto sustentar a afirmação, use \"encontrado\": false e deixe a citação vazia. Não use conhecimento externo.",
+    'Responda SOMENTE com JSON: {"citacoes":[{"id":"A1","encontrado":true,"citacao_original":"","pagina":""}]}',
+  ].join("\n");
+  const entrada = ["AFIRMAÇÕES:", ...afirmacoes.map((a) => `- ${a.id}: ${a.texto}\n  citação informada (não localizada no documento): ${a.trecho}`), "", "TEXTO DO DOCUMENTO:", pnTextoParaIA(ctx.indice, ids)].join("\n");
+  const r = await pnChamarGemini(sys, entrada, "Pesquisador · Reancoragem de citações (Modo A)", { signal: ctx.signal, json: true, maxOutputTokens: 4096 });
+  const j = pnLerJson(r.texto);
+  return new Map(pnArr(j.citacoes).filter((x) => x && x.encontrado !== false && pnStr(x.citacao_original)).map((x) => [pnStr(x.id), { trecho: pnStr(x.citacao_original), pagina: pnStr(x.pagina) }]));
+}
+async function pnGeracaoA(ctx) {
+  const ind = ctx.indice;
+  const v = [];
+  let chamadas = 0;
+  const cabeTudo = ind.totalChars <= PN_ORCAMENTO_RODADAS[0];
+  // Expansão da consulta pela IA (só termos de busca). Dispensada quando o documento inteiro cabe na 1ª rodada.
+  let extras = null, expansao = "dispensada";
+  if (!cabeTudo) {
+    try { extras = await pnExpandirConsultaIA(ctx); chamadas++; expansao = "ok"; }
+    catch (err) { if (err && (err.fatal || err.name === "AbortError")) throw err; expansao = (err && err.message) || String(err); }
+  }
+  const consulta = pnConsultaDaPergunta(ctx.pergunta, ind, extras);
+  const busca = ctx.busca = { consulta, rodadas: [], enviados: new Set(), expansao, extras, encontrou: false, reancoradas: 0 };
+  const todas = [], respostas = [];
+  let proximo = 1;
+  const executar = async (ids, rodada) => {
+    rodada.n = busca.rodadas.length + 1;
+    const localizadasAntes = todas.filter((a) => a.preLocal);
+    rodada.jaLocalizado = localizadasAntes.map((a) => a.texto).slice(0, 20);
+    rodada.faltando = respostas.length ? pnArr(respostas[respostas.length - 1].j.nao_localizado).map(pnStr).filter(Boolean) : [];
+    const texto = pnTextoParaIA(ind, ids);
+    const r = await pnChamarGemini(pnPromptGeracaoA(ctx.norma, ind, rodada),
+      `PERGUNTA:\n${ctx.pergunta}\n\nDOCUMENTO (norma selecionada pelo usuário — única fonte permitida):\n${texto}`,
+      `Pesquisador · Análise (Modo A, rodada ${rodada.n})`, { signal: ctx.signal, json: true, maxOutputTokens: 16384 });
+    chamadas++;
+    if (r.grounding && (r.grounding.groundingChunks || []).length) throw fatal("Inconsistência: houve busca externa no Modo A. Resultado descartado.");
+    const j = pnLerJson(r.texto);
+    ids.forEach((id) => busca.enviados.add(id));
+    const mapa = new Map();
+    const novas = pnArr(j.afirmacoes).map((a, i) => {
+      const id = `A${proximo++}`;
+      mapa.set(/^A\d+$/.test(pnStr(a && a.id)) ? pnStr(a.id) : `A${i + 1}`, id);
+      return {
+        id, categoria: pnStr(a.categoria) || "outro", texto: pnStr(a.texto), trecho: pnStr(a.citacao_literal), traducao: pnStr(a.traducao || a.traducao_pt),
+        ref: { pagina: pnStr(a.pagina), secao: pnStr(a.secao), tabela: pnStr(a.tabela), anexo: pnStr(a.anexo) },
+        notas: pnStr(a.notas_excecoes), status: "pendente", problemas: [], historico: [], rodada: rodada.n,
+      };
+    }).filter((a) => a.texto && !todas.some((b) => b.texto === a.texto && b.trecho === a.trecho));
+    // Pré-conferência local; citação não encontrada → reancoragem no texto original.
+    const naoLoc = novas.filter((a) => a.trecho && !pnLocalizadoOk(ctx, a.trecho, a.ref.pagina));
+    rodada.reancoragem = "";
+    if (naoLoc.length) {
+      try {
+        const re = await pnReancorarA(ctx, naoLoc, ids);
+        chamadas++;
+        let ok = 0;
+        for (const a of naoLoc) {
+          const x = re.get(a.id) || [...re.entries()].find(([k]) => mapa.get(k) === a.id)?.[1];
+          if (!x || !pnLocalizadoOk(ctx, x.trecho, x.pagina || a.ref.pagina)) continue;
+          a.historico.push(tr3(`citação reancorada no texto original do documento (a citação informada pela IA não existia literalmente: "${a.trecho.slice(0, 160)}")`, `quote re-anchored to the document's original text (the AI's quote did not exist verbatim: "${a.trecho.slice(0, 160)}")`, "原文に再照合"));
+          a.trecho = x.trecho; a.reancorada = true; ok++;
+        }
+        busca.reancoradas += ok;
+        rodada.reancoragem = tr3(`${ok}/${naoLoc.length} citação(ões) reancorada(s) no texto original`, `${ok}/${naoLoc.length} quote(s) re-anchored`, `${ok}/${naoLoc.length}`);
+      } catch (err) {
+        if (err && (err.fatal || err.name === "AbortError")) throw err;
+        rodada.reancoragem = tr3(`reancoragem falhou: ${err.message || err}`, `re-anchoring failed: ${err.message || err}`, "再照合失敗");
+      }
+    }
+    novas.forEach((a) => { a.preLocal = pnLocalizadoOk(ctx, a.trecho, a.ref.pagina); });
+    const status = pnStr(j.informacao_encontrada).toLowerCase().replace("não", "nao");
+    Object.assign(rodada, { paginas: pnPaginasDosTrechos(ind, ids), chars: texto.length, trechos: ids.length, resposta: status || "—", afirmacoes: novas.length, localizadas: novas.filter((a) => a.preLocal).length });
+    busca.rodadas.push(rodada);
+    respostas.push({ j, mapa, rodada });
+    todas.push(...novas);
+    if (rodada.localizadas && (status === "sim" || !status)) busca.encontrou = true;
+    const ad = j.busca_adicional || {};
+    if (!busca.encontrou) pnAmpliarConsulta(consulta, { termos: pnArr(ad.termos).map(pnStr).filter(Boolean).slice(0, 12), secoes: pnArr(ad.secoes).map(pnStr).filter(Boolean).slice(0, 8) }, ind, 0.85);
+  };
+  // Rodadas 1 (focada) e 2 (ampliada): trechos ranqueados.
+  for (let i = 0; i < PN_ORCAMENTO_RODADAS.length && !busca.encontrou; i++) {
+    const ranking = pnRanquear(ind, consulta);
+    if (i === 0) busca.ranking = ranking.slice(0, 8).map((r) => ({ pagina: r.c.bloco, impressa: r.c.impressa, secao: r.c.secao ? r.c.secao.id : "", score: Math.round(r.score * 10) / 10, motivos: r.motivos.slice(0, 6) }));
+    const orc = cabeTudo ? Infinity : PN_ORCAMENTO_RODADAS[i];
+    const ids = cabeTudo && i === 0 ? ind.chunks.map((c) => c.id) : pnSelecionarTrechos(ind, ranking, orc, busca.enviados);
+    if (!ids.length) continue;
+    const integral = busca.enviados.size === 0 && ids.length === ind.chunks.length;
+    await executar(ids, { tipo: i === 0 ? "focada" : "ampliada", integral });
+  }
+  // Leitura integral do que ainda não foi lido (documento inteiro de uma vez, se couber).
+  if (!busca.encontrou && busca.enviados.size < ind.chunks.length) {
+    const resto = ind.totalChars <= PN_LIMITE_DOC ? ind.chunks.map((c) => c.id) : ind.chunks.filter((c) => !busca.enviados.has(c.id)).map((c) => c.id);
+    const lotes = [];
+    let lote = [], tam = 0;
+    for (const id of resto) {
+      const t = ind.chunks[id].texto.length;
+      if (lote.length && tam + t > PN_LIMITE_DOC) { lotes.push(lote); lote = []; tam = 0; }
+      lote.push(id); tam += t;
+    }
+    if (lote.length) lotes.push(lote);
+    for (let k = 0; k < lotes.length && k < PN_MAX_LOTES_INTEGRAIS && !busca.encontrou; k++) {
+      const tudo = lotes[k].length === ind.chunks.length;
+      await executar(lotes[k], lotes.length === 1 ? { tipo: tudo ? "integral" : "restante", integral: tudo } : { tipo: "lote", lote: k + 1, lotes: lotes.length });
+    }
+    if (lotes.length > PN_MAX_LOTES_INTEGRAIS && !busca.encontrou) busca.lotesNaoLidos = lotes.slice(PN_MAX_LOTES_INTEGRAIS).flat();
+  }
+  // Cobertura: página "lida" = todos os seus trechos chegaram à IA.
+  const porPagina = new Map();
+  ind.chunks.forEach((c) => { if (!porPagina.has(c.bloco)) porPagina.set(c.bloco, []); porPagina.get(c.bloco).push(c.id); });
+  const lidas = [...porPagina].filter(([, ids]) => ids.every((id) => busca.enviados.has(id))).map(([n]) => n);
+  const naoLidas = [...porPagina.keys()].filter((n) => !lidas.includes(n));
+  busca.cobertura = { total: ctx.norma.paginas.length, legiveis: ind.legiveis.size, lidas: lidas.length, naoLidas, ilegiveis: ind.ilegiveis, emBranco: ind.emBranco, completa: !naoLidas.length && !ind.ilegiveis.length };
+  // Consolida as rodadas (ids renumerados A1…An em todas elas).
+  const remap = (txt, mapa) => String(txt || "").replace(/\[(A\d+)\]/g, (m, id) => (mapa.has(id) ? `[${mapa.get(id)}]` : ""));
+  const comAchado = respostas.filter((r) => r.rodada.afirmacoes);
+  const decisiva = respostas.find((r) => r.rodada.localizadas && /^(sim)?$/.test(r.rodada.resposta === "—" ? "" : r.rodada.resposta)) || respostas[respostas.length - 1];
+  ctx.afirmacoes = todas;
+  ctx.ger = {
+    perguntaResumo: pnStr((respostas.find((r) => pnStr(r.j.pergunta_resumo)) || { j: {} }).j.pergunta_resumo),
+    pertinente: respostas.some((r) => r.j.documento_pertinente !== false),
+    pertinenciaObs: respostas.map((r) => pnStr(r.j.pertinencia_observacao)).filter(Boolean).slice(-1)[0] || "",
+    respostaPreliminar: (comAchado.length ? comAchado : respostas.slice(-1)).map((r) => remap(r.j.resposta_preliminar, r.mapa)).join(" ").trim(),
+    interpretacoes: respostas.flatMap((r) => pnArr(r.j.interpretacoes).map((x) => ({ ...x, base: pnArr(x && x.base).map((id) => r.mapa.get(pnStr(id))).filter(Boolean) }))),
+    naoLocalizado: decisiva ? pnArr(decisiva.j.nao_localizado).map(pnStr).filter(Boolean) : [],
+    limitacoes: [...new Set(respostas.flatMap((r) => pnArr(r.j.limitacoes).map(pnStr).filter(Boolean)))],
+  };
+  // Verificações registradas desta etapa.
+  const nomeIdioma = PN_IDIOMA_NOME[ind.idioma] || tr3("não identificado", "unknown", "不明");
+  v.push(pnV(tr3("Busca local no documento", "Local search in the document", "文書内ローカル検索"), "ok", tr3(`${ind.chunks.length} trecho(s) indexado(s) em ${ind.legiveis.size} ${ind.paginado ? "página(s)" : "bloco(s)"}; idioma do documento: ${nomeIdioma}; conceitos da pergunta: ${consulta.conceitos.filter((k) => k.nucleo).map((k) => k.orig).join(", ") || "—"}`, `${ind.chunks.length} chunk(s); document language: ${ind.idioma || "unknown"}; question concepts: ${consulta.conceitos.filter((k) => k.nucleo).map((k) => k.orig).join(", ")}`, `${ind.chunks.length}`)));
+  v.push(pnV(tr3("Expansão multilíngue da busca (IA, só termos)", "Multilingual query expansion (AI, terms only)", "多言語クエリ拡張"), expansao === "ok" || expansao === "dispensada" ? "ok" : "alerta",
+    expansao === "ok" ? tr3(`termos sugeridos: ${extras.conceitos.flatMap((c) => c.termos).slice(0, 14).join(", ")}${extras.secoes.length ? `; seções prováveis: ${extras.secoes.join(", ")}` : ""}`, `suggested terms: ${extras.conceitos.flatMap((c) => c.termos).slice(0, 14).join(", ")}`, "OK")
+      : expansao === "dispensada" ? tr3("dispensada — o documento inteiro coube na primeira rodada", "skipped — the whole document fit in the first round", "不要") : tr3(`não executada (${expansao}); busca seguiu com o glossário técnico PT/EN/ES`, `not run (${expansao}); search used the PT/EN/ES glossary`, "未実行")));
+  busca.rodadas.forEach((r) => v.push(pnV(tr3(`Rodada ${r.n} — ${({ focada: "trechos mais relevantes", ampliada: "trechos adicionais", integral: "leitura integral", restante: "leitura do restante do documento", lote: `leitura integral, parte ${r.lote}/${r.lotes}` })[r.tipo]}`, `Round ${r.n} — ${r.tipo}`, `ラウンド ${r.n}`), r.localizadas ? "ok" : "alerta",
+    tr3(`${r.paginas.length} ${ind.paginado ? "página(s)" : "bloco(s)"} (${pnFaixas(r.paginas)}), ${r.chars.toLocaleString("pt-BR")} caracteres; resposta da IA: ${r.resposta}; ${r.afirmacoes} afirmação(ões), ${r.localizadas} com citação localizada no documento${r.reancoragem ? "; " + r.reancoragem : ""}`, `${r.paginas.length} page(s) (${pnFaixas(r.paginas)}); AI answer: ${r.resposta}; ${r.afirmacoes} claim(s), ${r.localizadas} located${r.reancoragem ? "; " + r.reancoragem : ""}`, `${r.localizadas}`))));
+  const cob = busca.cobertura;
+  v.push(pnV(tr3("Cobertura da leitura", "Reading coverage", "読み取り範囲"), cob.completa || busca.encontrou ? "ok" : "alerta", tr3(`${cob.lidas}/${cob.total} ${ind.paginado ? "página(s)" : "bloco(s)"} lida(s) pela IA${cob.emBranco.length ? ` (${pnFaixas(cob.emBranco)} em branco)` : ""}${cob.naoLidas.length ? `; não lidas: ${pnFaixas(cob.naoLidas)}` : ""}${cob.ilegiveis.length ? `; ilegíveis: ${pnFaixas(cob.ilegiveis)}` : ""}${busca.encontrou && cob.naoLidas.length ? " (informação encontrada antes de precisar ler o restante)" : ""}`, `${cob.lidas}/${cob.total} read${cob.naoLidas.length ? `; not read: ${pnFaixas(cob.naoLidas)}` : ""}${cob.ilegiveis.length ? `; unreadable: ${pnFaixas(cob.ilegiveis)}` : ""}`, `${cob.lidas}/${cob.total}`)));
+  v.push(pnV(tr3("Busca na internet", "Web search", "ウェブ検索"), "ok", tr3("desligada (nenhuma ferramenta de busca enviada)", "off (no search tool sent)", "オフ")));
+  return { resumo: tr3(`${todas.length} afirmação(ões) em ${busca.rodadas.length} rodada(s) de busca; ${todas.filter((a) => a.preLocal).length} com citação localizada no documento.`, `${todas.length} claim(s) in ${busca.rodadas.length} search round(s); ${todas.filter((a) => a.preLocal).length} with located quote.`, `${todas.length} 件`), chamadasIA: chamadas, verificacoes: v };
 }
 
 async function pnRevisao1A(ctx) {
   const v = [];
-  const n = ctx.norma, doc = ctx.doc;
+  const n = ctx.norma, busca = ctx.busca;
   v.push(pnV(tr3("Fonte única", "Single source", "単一の情報源"), "ok", tr3(`Somente "${pnRotuloNorma(n)}" foi enviada; nenhuma ferramenta de busca; nenhum outro documento.`, `Only "${pnRotuloNorma(n)}" was sent; no search tool; no other document.`, `「${pnRotuloNorma(n)}」のみ送信。`)));
   (n.avisos || []).filter((a) => a.nivel !== "info").forEach((a) => v.push(pnV(tr3("Qualidade do documento", "Document quality", "文書品質"), a.nivel === "falha" ? "falha" : "alerta", a.texto)));
-  if (doc.selecao) v.push(pnV(tr3("Cobertura do documento", "Document coverage", "文書の網羅"), "alerta", tr3(`Documento grande: foram enviadas as partes mais relevantes (${doc.selecao.enviadosChars.toLocaleString("pt-BR")} de ${doc.selecao.totalChars.toLocaleString("pt-BR")} caracteres). Não analisadas: ${n.paginado ? "páginas" : "blocos"} ${pnFaixas(doc.selecao.fora)}.`, `Large document: the most relevant parts were sent. Not analysed: ${pnFaixas(doc.selecao.fora)}.`, `未分析: ${pnFaixas(doc.selecao.fora)}`)));
+  const cob = busca.cobertura;
+  v.push(pnV(tr3("Cobertura do documento", "Document coverage", "文書の網羅"), cob.completa || busca.encontrou ? "ok" : "alerta",
+    cob.completa ? tr3(`Todas as ${cob.legiveis} ${n.paginado ? "páginas" : "partes"} legíveis foram lidas pela IA.`, `All ${cob.legiveis} readable pages were read by the AI.`, "全ページ読了")
+      : tr3(`${cob.lidas} de ${cob.total} ${n.paginado ? "páginas" : "blocos"} lidas pela IA${cob.naoLidas.length ? ` (não lidas: ${pnFaixas(cob.naoLidas)})` : ""}${cob.ilegiveis.length ? `; ilegíveis: ${pnFaixas(cob.ilegiveis)}` : ""}.${busca.encontrou ? " A informação foi encontrada antes de precisar ler o restante." : " Sem leitura completa, a ausência da informação não pode ser afirmada."}`, `${cob.lidas} of ${cob.total} read by the AI${cob.naoLidas.length ? ` (not read: ${pnFaixas(cob.naoLidas)})` : ""}${cob.ilegiveis.length ? `; unreadable: ${pnFaixas(cob.ilegiveis)}` : ""}.`, `${cob.lidas}/${cob.total}`)));
   const ia = n.paginas.filter((p) => (p.textoIA || "").trim()).map((p) => p.n);
   if (ia.length) v.push(pnV(tr3("Transcrição por IA", "AI transcription", "AI 転写"), "alerta", tr3(`Páginas ${pnFaixas(ia)} vêm de transcrição por IA — trechos confirmados só nelas recebem ressalva.`, `Pages ${pnFaixas(ia)} come from AI transcription — excerpts confirmed only there are flagged.`, `${pnFaixas(ia)} は AI 転写`)));
   // Pertinência: o que o modelo declarou + termos da pergunta presentes no documento.
   const normDoc = ctx.idx.norm;
-  const presentes = doc.chaves.filter((w) => normDoc.includes(w));
-  const cobertura = doc.chaves.length ? presentes.length / doc.chaves.length : 1;
+  // Conceitos da pergunta (com equivalentes PT/EN/ES e termos da expansão) presentes no documento.
+  const nucleos = busca.consulta.conceitos.filter((k) => k.nucleo);
+  const presentes = nucleos.filter((k) => pnConceitoNoDocumento(ctx.indice, k));
+  const cobertura = nucleos.length ? presentes.length / nucleos.length : 1;
   v.push(pnV(tr3("Pertinência", "Relevance", "関連性"), !ctx.ger.pertinente || cobertura < 0.3 ? "alerta" : "ok",
-    tr3(`IA: ${ctx.ger.pertinente ? "documento pertinente" : "documento NÃO pertinente"}${ctx.ger.pertinenciaObs ? " — " + ctx.ger.pertinenciaObs : ""}. Termos da pergunta encontrados no texto: ${presentes.length}/${doc.chaves.length}.`,
-      `AI: ${ctx.ger.pertinente ? "relevant" : "NOT relevant"}. Question terms found in text: ${presentes.length}/${doc.chaves.length}.`, `語句一致 ${presentes.length}/${doc.chaves.length}`)));
+    tr3(`IA: ${ctx.ger.pertinente ? "documento pertinente" : "documento NÃO pertinente"}${ctx.ger.pertinenciaObs ? " — " + ctx.ger.pertinenciaObs : ""}. Conceitos da pergunta encontrados no texto (inclusive equivalentes em outro idioma): ${presentes.length}/${nucleos.length}${presentes.length ? ` (${presentes.map((k) => k.orig).join(", ")})` : ""}.`,
+      `AI: ${ctx.ger.pertinente ? "relevant" : "NOT relevant"}. Question concepts found in text (incl. equivalents in other languages): ${presentes.length}/${nucleos.length}.`, `語句一致 ${presentes.length}/${nucleos.length}`)));
   // Afirmações: trecho presente, página existente, normas externas citadas.
   const paginasValidas = new Set(n.paginas.map((p) => String(p.n)));
   let semTrecho = 0, paginaInvalida = 0, externas = 0;
@@ -8394,13 +9263,13 @@ async function pnRevisao2A(ctx) {
   let literais = 0, aproximadas = 0, naoLoc = 0, refCorrigidas = 0, refInexistentes = 0, numErrados = 0, foraDoEnviado = 0;
   for (const a of atual) {
     if (a.status === "removida") continue;
-    const loc = pnLocalizarTrecho(ctx.idx, a.trecho);
+    const loc = pnLocalizarTrecho(ctx.idx, a.trecho, { pagina: a.ref.pagina, enviado: (l) => pnTrechoEnviado(ctx, l) });
     if (!loc || loc.tipo === "parcial") {
       a.status = "removida"; naoLoc++;
       a.problemas.push(loc ? tr3(`trecho só parcialmente encontrado no documento (${loc.score}% das palavras) — não confirmado`, `excerpt only partially found (${loc.score}%) — not confirmed`, `部分一致のみ (${loc.score}%)`) : tr3("trecho citado NÃO existe no documento", "quoted excerpt does NOT exist in the document", "引用された抜粋は文書に存在しない"));
       continue;
     }
-    if (!ctx.doc.enviados.has(loc.segmento)) { a.status = "removida"; foraDoEnviado++; a.problemas.push(tr3("trecho está numa parte do documento que não foi enviada à IA — descartado por não ter sido lido nesta pesquisa", "excerpt lies in a part not sent to the AI — discarded", "未送信部分の抜粋")); continue; }
+    if (!pnTrechoEnviado(ctx, loc)) { a.status = "removida"; foraDoEnviado++; a.problemas.push(tr3("trecho está numa parte do documento que não foi enviada à IA — descartado por não ter sido lido nesta pesquisa", "excerpt lies in a part not sent to the AI — discarded", "未送信部分の抜粋")); continue; }
     loc.tipo === "literal" ? literais++ : aproximadas++;
     a.local = loc;
     // Página
@@ -8429,6 +9298,12 @@ async function pnRevisao2A(ctx) {
     // Números da afirmação precisam estar no trecho (ou no contexto imediato).
     const faltam = pnNumerosAusentes(a.texto, loc.contexto);
     if (faltam.length) { numErrados++; a.numerosAusentes = faltam; }
+    // Tradução da citação: só fica se não mudar nenhum número do original.
+    if (a.traducao && ctx.indice && ctx.indice.idioma === ({ pt: "pt", en: "en", jp: "ja" })[currentLang]) a.traducao = "";
+    if (a.traducao) {
+      const fT = pnNumerosAusentes(a.traducao, `${loc.trechoOriginal} ${loc.contexto}`);
+      if (fT.length) { a.historico.push(tr3(`tradução da citação descartada: valores ${fT.join(", ")} não aparecem no trecho original`, `quote translation discarded: values ${fT.join(", ")} are not in the original`, "翻訳を破棄")); a.traducao = ""; }
+    }
     candidatas.push(a);
   }
   v.push(pnV(tr3("Trechos localizados no documento", "Excerpts located in the document", "文書内で特定された抜粋"), naoLoc ? "alerta" : "ok", tr3(`${literais} literal(is), ${aproximadas} aproximado(s) (≥85% das palavras), ${naoLoc} não localizado(s) — descartado(s)`, `${literais} literal, ${aproximadas} approximate, ${naoLoc} not found — discarded`, `一致 ${literais}/${aproximadas}, 不一致 ${naoLoc}`)));
@@ -8440,6 +9315,7 @@ async function pnRevisao2A(ctx) {
     const sys = [
       "[PESQUISADOR DE NORMAS · ETAPA=REVISAO2 · MODO=A]",
       "Você é um auditor técnico. Para cada afirmação, compare-a SOMENTE com o TRECHO DO DOCUMENTO fornecido junto dela (e seu contexto). Não use conhecimento externo.",
+      "O trecho pode estar em idioma diferente da afirmação (ex.: norma em inglês, afirmação em português): compare o sentido técnico e os valores, não as palavras.",
       "Verifique: requisito, valores, unidades, condições de ensaio, métodos, limites e critérios. Veja se notas, exceções, tabelas ou condições no contexto alteram o significado.",
       "suporte: \"total\" (o trecho diz exatamente isso), \"parcial\" (diz parte, ou a afirmação generaliza/omite condição) ou \"nenhum\".",
       "Se parcial, escreva em \"texto_corrigido\" uma versão fiel ao trecho, sem acrescentar nada que o trecho não diga. \"numeros_conferem\": false se algum número/unidade da afirmação diferir do trecho.",
@@ -8704,7 +9580,11 @@ async function pnRevisao3(ctx) {
 function pnValidarTextoFinal(texto, ctx, urlsVerificadas) {
   const confirmadas = new Map(ctx.afirmacoes.filter((a) => a.status === "confirmada" || a.status === "divergente").map((a) => [a.id, a]));
   const removidas = [];
-  const frases = String(texto || "").replace(/\r/g, "").replace(/\b(p|pp|n|nº|no|ex|aprox|fig|tab|item|cf|vol|ed|art|cap|sec)\.\s/gi, "$1.\u00A0").split(/(?<=[.!?;])\s+|\n+/).map((f) => f.trim()).filter(Boolean);
+  const frases = [];
+  // "… 75 °C. [A1]": o marcador solto depois do ponto pertence à frase anterior.
+  for (const f of String(texto || "").replace(/\r/g, "").replace(/\b(p|pp|n|nº|no|ex|aprox|fig|tab|item|cf|vol|ed|art|cap|sec)\.\s/gi, "$1.\u00A0").split(/(?<=[.!?;])\s+|\n+/).map((x) => x.trim()).filter(Boolean)) {
+    if (frases.length && /^(?:\[A\d+\][\s.,;]*)+$/.test(f)) frases[frases.length - 1] += " " + f; else frases.push(f);
+  }
   const out = [];
   for (let f of frases) {
     f = f.replace(/https?:\/\/[^\s)\]]+/g, (u) => (urlsVerificadas.has(u) ? u : (removidas.push(tr3(`link não verificado removido: ${u}`, `unverified link removed: ${u}`, `未検証リンク削除: ${u}`)), "")));
@@ -8754,20 +9634,26 @@ async function pnRevisao4(ctx) {
   const urlsVerificadas = new Set();
   const resp = pnValidarTextoFinal(pnStr(j.resposta_principal), ctx, urlsVerificadas);
   const fund = pnValidarTextoFinal(pnStr(j.fundamentacao), ctx, urlsVerificadas);
-  let resposta = resp.texto;
+  // Sem nada confirmado no Modo A, a resposta é a frase determinística sobre a leitura (nada da IA).
+  let resposta = ctx.modo === "A" && !conf.length ? "" : resp.texto;
   let montadaAutomaticamente = false;
   if (!resposta && conf.length) {
     resposta = conf.map((a) => `${a.texto} [${a.id}]`).join(" ");
     montadaAutomaticamente = true;
   }
+  // Modo A: "não localizada" exige leitura de TODAS as páginas legíveis e nenhuma ilegível.
+  const cobA = ctx.modo === "A" && ctx.busca ? ctx.busca.cobertura : null;
+  const leituraCompleta = !!cobA && cobA.completa;
   if (!resposta) resposta = ctx.modo === "A"
-    ? tr3("Não foi possível localizar no documento selecionado informações que respondam à pergunta com segurança.", "It was not possible to locate in the selected document information that reliably answers the question.", "選択した文書で回答となる情報を確認できませんでした。")
+    ? (leituraCompleta
+      ? tr3(`A informação não foi localizada no documento selecionado: todas as ${cobA.legiveis} ${ctx.norma.paginado ? "páginas" : "partes"} legíveis foram lidas e nenhum trecho que responda à pergunta foi confirmado.`, `The information was not found in the selected document: all ${cobA.legiveis} readable pages were read and no excerpt answering the question was confirmed.`, "文書全体を読みましたが該当情報は確認できませんでした。")
+      : tr3(`Não foi possível localizar a informação nas partes lidas do documento, e a leitura ficou incompleta${cobA && cobA.ilegiveis.length ? ` (páginas ilegíveis: ${pnFaixas(cobA.ilegiveis)})` : ""}${cobA && cobA.naoLidas.length ? ` (não lidas: ${pnFaixas(cobA.naoLidas)})` : ""} — não é possível afirmar que o documento não contém a informação.`, `The information was not found in the parts read, and reading was incomplete — absence cannot be asserted.`, "読み取りが不完全なため、不在とは断定できません。"))
     : tr3("Não foi possível confirmar em fontes confiáveis informações que respondam à pergunta.", "It was not possible to confirm in reliable sources information that answers the question.", "信頼できる情報源で確認できませんでした。");
   // Status final: a IA só pode REBAIXAR o que as checagens permitem.
   const iaStatus = pnStr(j.status_conclusao).toLowerCase();
   const pendencias = ctx.divergencias.length || ctx.ger.naoLocalizado.length || ctx.afirmacoes.some((a) => a.status === "nao_confirmada");
   let status;
-  if (!conf.length) status = ctx.modo === "A" ? "nao_localizada" : "inconclusiva";
+  if (!conf.length) status = ctx.modo === "A" && leituraCompleta ? "nao_localizada" : "inconclusiva";
   else if (iaStatus === "inconclusiva") status = "inconclusiva";
   else if (iaStatus === "parcial" || pendencias) status = "parcial";
   else status = "validada";
@@ -8775,6 +9661,7 @@ async function pnRevisao4(ctx) {
   v.push(pnV(tr3("Referências verificáveis", "Verifiable references", "検証可能な参照"), semRef.length ? "alerta" : "ok", tr3(`${conf.length}/${conf.length + semRef.length} afirmação(ões) com referência/fonte verificada${semRef.length ? ` — ${semRef.length} rebaixada(s) a não confirmada` : ""}`, `${conf.length}/${conf.length + semRef.length} with verified reference`, `${conf.length}/${conf.length + semRef.length}`)));
   if (montadaAutomaticamente) v.push(pnV(tr3("Redação da resposta", "Answer wording", "回答の作成"), "alerta", tr3("a redação da IA não passou na checagem; a resposta foi montada diretamente das afirmações confirmadas", "the AI wording failed the check; the answer was assembled from confirmed claims", "確認済み主張から自動作成")));
   v.push(pnV(tr3("Status da conclusão", "Conclusion status", "結論の状態"), status === "validada" ? "ok" : "alerta", `${PN_STATUS_ROTULO[status]()}${pnStr(j.justificativa_status) ? " — " + pnStr(j.justificativa_status) : ""}`));
+  if (ctx.modo === "A" && !conf.length) v.push(pnV(tr3("Ausência × leitura do documento", "Absence × document reading", "不在と読み取り範囲"), leituraCompleta ? "ok" : "alerta", leituraCompleta ? tr3("documento lido por inteiro — \"não localizada\" é conclusão da leitura completa", "whole document read — \"not found\" follows a complete reading", "全文読了") : tr3("leitura incompleta — resultado marcado como inconclusivo, não como ausência", "incomplete reading — marked inconclusive, not absent", "読み取り不完全")));
   ctx.final = { resposta, fundamentacao: fund.texto, status, removidasTexto: [...resp.removidas, ...fund.removidas], montadaAutomaticamente };
   return { resumo: PN_STATUS_ROTULO[status](), verificacoes: v, chamadasIA: 1 };
 }
@@ -8789,8 +9676,13 @@ function pnRefTexto(a, ctx) {
   const r = a.ref || {};
   const partes = [];
   if (ctx.modo === "B" && r.norma) partes.push(r.norma);
-  if (r.secao) partes.push(tr3("seção ", "clause ", "節 ") + r.secao + (r.secaoAuto ? "*" : ""));
-  if (r.pagina) partes.push(tr3("p. ", "p. ", "p. ") + r.pagina);
+  const tituloSecao = r.secao && ctx.indice ? ctx.indice.mapaTitulos.get(pnSoNumeroSecao(r.secao) || r.secao) : "";
+  if (r.secao) partes.push(tr3("seção ", "clause ", "節 ") + r.secao + (r.secaoAuto ? "*" : "") + (tituloSecao ? ` (${tituloSecao})` : ""));
+  // Modo A: página FÍSICA do PDF (onde o trecho foi localizado) e a numeração IMPRESSA, quando diferente.
+  const imp = ctx.modo === "A" && a.local ? a.local.impressa : "";
+  if (r.pagina) partes.push(ctx.modo === "A" && a.local
+    ? tr3(`p. ${r.pagina} do PDF`, `p. ${r.pagina} of the PDF`, `PDF ${r.pagina} ページ`) + (imp && imp !== String(r.pagina) ? tr3(` (página impressa ${imp})`, ` (printed page ${imp})`, ` (印刷ページ ${imp})`) : "")
+    : tr3("p. ", "p. ", "p. ") + r.pagina);
   else if (ctx.modo === "A" && a.local) partes.push(a.local.rotulo);
   if (r.tabela) partes.push(r.tabela);
   else if (r.tabelaPerto) partes.push(tr3(`próximo a ${r.tabelaPerto}`, `near ${r.tabelaPerto}`, `${r.tabelaPerto} 付近`));
@@ -8810,24 +9702,21 @@ async function pnExecutarPesquisa() {
   if (modo === "A") {
     norma = pnNormas.find((n) => n.id === PN.normaSelect.value);
     if (!norma) { toast(tr3("Selecione a norma que será usada (ou cadastre uma).", "Select the standard to use (or add one).", "使用する規格を選択してください。")); return; }
-    if (!pnTextoUtil(norma)) { toast(tr3("Esta norma não tem texto legível. Transcreva as páginas com IA ou cadastre o texto antes.", "This standard has no readable text. Transcribe pages with AI or add the text first.", "読み取れるテキストがありません。")); return; }
+    // Sem texto selecionável, o PDF é lido por imagem na etapa de preparação; só não há saída sem o PDF original.
+    if (!pnPesquisavel(norma)) { toast(tr3("Esta norma não tem texto legível e o PDF original não está guardado neste navegador (ex.: restaurada de backup). Use \"Substituir\" com o PDF ou cadastre o texto.", "This standard has no readable text and the original PDF is not stored in this browser. Use \"Replace\" with the PDF or add the text.", "読み取れるテキストも元の PDF もありません。")); return; }
   }
   const ctrl = new AbortController();
   const ctx = {
     id: "pn_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), criadoEm: Date.now(), modo, pergunta, lang: currentLang,
-    norma, signal: ctrl.signal, etapas: PN_ETAPAS.map((e) => ({ id: e.id, status: "pendente", tentativas: 0, verificacoes: [], erros: [] })),
+    norma, signal: ctrl.signal, etapas: PN_ETAPAS.filter((e) => !e.soModo || e.soModo === modo).map((e) => ({ id: e.id, status: "pendente", tentativas: 0, verificacoes: [], erros: [] })),
     afirmacoes: [], divergencias: [], interpretacoes: [], fontesConsultadas: [], fontesDeclaradas: [], buscas: [], sugestoesBusca: [], statusLinks: [],
   };
   pnPesquisaAtiva = { ctx, ctrl };
   pnUiExecutando(true, ctx);
   let falhou = null;
   try {
-    if (modo === "A") {
-      ctx.doc = pnPrepararDocumentoA(norma, pergunta);
-      ctx.idx = pnIndexar(ctx.doc.segmentos);
-    }
     const passos = modo === "A"
-      ? [["geracao", () => pnGeracaoA(ctx)], ["r1", () => pnRevisao1A(ctx)], ["r2", () => pnRevisao2A(ctx)], ["r3", () => pnRevisao3(ctx)], ["r4", () => pnRevisao4(ctx)]]
+      ? [["preparo", () => pnPreparoA(ctx)], ["geracao", () => pnGeracaoA(ctx)], ["r1", () => pnRevisao1A(ctx)], ["r2", () => pnRevisao2A(ctx)], ["r3", () => pnRevisao3(ctx)], ["r4", () => pnRevisao4(ctx)]]
       : [["geracao", (tt) => pnGeracaoB(ctx, tt)], ["r1", () => pnRevisao1B(ctx)], ["r2", (tt) => pnRevisao2B(ctx, tt)], ["r3", () => pnRevisao3(ctx)], ["r4", () => pnRevisao4(ctx)]];
     for (const [id, fn] of passos) {
       const ok = await pnRodarEtapa(ctx, id, fn);
@@ -8857,7 +9746,12 @@ function pnMontarRegistro(ctx) {
   const removidas = ctx.afirmacoes.filter((a) => a.status === "removida" || a.status === "nao_confirmada");
   const limitacoes = [];
   if (ctx.norma) (ctx.norma.avisos || []).filter((a) => a.nivel !== "info").forEach((a) => limitacoes.push(a.texto));
-  if (ctx.doc && ctx.doc.selecao) limitacoes.push(tr3(`Partes do documento não analisadas (limite de tamanho): ${ctx.norma.paginado ? "páginas" : "blocos"} ${pnFaixas(ctx.doc.selecao.fora)}.`, `Parts of the document not analysed (size limit): ${pnFaixas(ctx.doc.selecao.fora)}.`, `未分析: ${pnFaixas(ctx.doc.selecao.fora)}`));
+  const cobR = ctx.busca && ctx.busca.cobertura;
+  if (cobR && !cobR.completa && !ctx.busca.encontrou) {
+    if (cobR.naoLidas.length) limitacoes.push(tr3(`Partes do documento não lidas pela IA nesta pesquisa: ${ctx.norma.paginado ? "páginas" : "blocos"} ${pnFaixas(cobR.naoLidas)}.`, `Parts of the document not read by the AI: ${pnFaixas(cobR.naoLidas)}.`, `未読: ${pnFaixas(cobR.naoLidas)}`));
+    if (cobR.ilegiveis.length) limitacoes.push(tr3(`Páginas sem conteúdo legível (nem texto nem leitura por imagem): ${pnFaixas(cobR.ilegiveis)} — a informação pode estar nelas.`, `Pages with no readable content: ${pnFaixas(cobR.ilegiveis)} — the information may be there.`, `判読不能: ${pnFaixas(cobR.ilegiveis)}`));
+  }
+  if (ctx.ocr && ctx.ocr.falhas.length) limitacoes.push(tr3(`Leitura por imagem falhou nas páginas ${pnFaixas(ctx.ocr.falhas.map((f) => f.num))}: ${ctx.ocr.falhas[ctx.ocr.falhas.length - 1].erro}. Repita a pesquisa para tentar de novo.`, `Image reading failed on pages ${pnFaixas(ctx.ocr.falhas.map((f) => f.num))}. Run the search again to retry.`, "OCR 失敗"));
   (ctx.ger ? ctx.ger.limitacoes : []).forEach((l) => limitacoes.push(l));
   if (ctx.etapaFalha) {
     const et = ctx.etapas.find((e) => e.id === ctx.etapaFalha);
@@ -8874,6 +9768,7 @@ function pnMontarRegistro(ctx) {
   return {
     id: ctx.id, criadoEm: ctx.criadoEm, modo: ctx.modo, pergunta: ctx.pergunta, lang: ctx.lang,
     norma: ctx.norma ? { id: ctx.norma.id, rotulo: pnRotuloNorma(ctx.norma), paginas: ctx.norma.paginas.length, paginado: ctx.norma.paginado } : null,
+    busca: ctx.busca ? pnResumoBusca(ctx) : null,
     status: ctx.statusFinal, completo, etapaFalha: ctx.etapaFalha || "",
     etapas: ctx.etapas.map((e) => ({ id: e.id, status: e.status, tentativas: e.tentativas, resumo: e.resumo || "", verificacoes: e.verificacoes || [], erros: e.erros || [], chamadasIA: e.chamadasIA || 0, duracao: e.fim && e.inicio ? e.fim - e.inicio : 0 })),
     perguntaResumo: ctx.ger ? ctx.ger.perguntaResumo : "",
@@ -8893,10 +9788,23 @@ function pnMontarRegistro(ctx) {
     sugestoesBusca: ctx.sugestoesBusca || [],
   };
 }
+/* Como a informação foi procurada (vai para o registro/histórico). */
+function pnResumoBusca(ctx) {
+  const b = ctx.busca, ind = ctx.indice;
+  return {
+    idioma: ind ? ind.idioma : "", paginado: ctx.norma.paginado,
+    conceitos: b.consulta.conceitos.filter((k) => k.nucleo).map((k) => ({ orig: k.orig, termos: [...k.variantes.values()].filter((v) => !v.radical && v.t !== k.orig).map((v) => v.t).slice(0, 8) })),
+    expansao: b.expansao, rodadas: b.rodadas.map((r) => ({ n: r.n, tipo: r.tipo, lote: r.lote || 0, lotes: r.lotes || 0, paginas: r.paginas, chars: r.chars, resposta: r.resposta, afirmacoes: r.afirmacoes, localizadas: r.localizadas, reancoragem: r.reancoragem || "" })),
+    ranking: b.ranking || [], cobertura: b.cobertura, encontrou: b.encontrou, reancoradas: b.reancoradas,
+    ocr: ctx.ocr ? { feitas: ctx.ocr.feitas, falhas: ctx.ocr.falhas.map((f) => f.num), semArquivo: ctx.ocr.semArquivo } : null,
+  };
+}
 function pnAfirmacaoSerial(a, ctx) {
   return {
     id: a.id, categoria: a.categoria, texto: a.texto, status: a.status, ref: pnRefTexto(a, ctx), notas: a.notas || "",
     trecho: a.local ? a.local.trechoOriginal : (a.verificacao && a.verificacao.evidencia) || a.trecho,
+    traducao: a.local ? a.traducao || "" : "",
+    paginaPdf: a.local && a.local.pagina != null ? String(a.local.pagina) : "", paginaImpressa: a.local ? a.local.impressa || "" : "",
     localizacao: a.local ? `${a.local.tipo === "literal" ? tr3("literal", "literal", "完全一致") : tr3(`aproximada (${a.local.score}%)`, `approximate (${a.local.score}%)`, `近似 (${a.local.score}%)`)} · ${a.local.rotulo}${a.local.origem === "ia" ? " · " + tr3("transcrição por IA", "AI transcription", "AI 転写") : ""}` : "",
     fonteUrl: a.verificacao && a.verificacao.fonteConsultada ? a.verificacao.url : "",
     ressalvas: [...(a.historico || []), ...(a.somenteSecundaria ? [tr3("apoiada apenas em fonte secundária", "supported only by a secondary source", "二次情報のみ")] : []), ...(a.status === "divergente" ? a.problemas : [])],
@@ -8937,7 +9845,8 @@ const pnBadge = (tipo, texto) => `<span class="inline-flex items-center rounded-
 const PN_STATUS_TIPO = { validada: "ok", parcial: "alerta", nao_localizada: "alerta", inconclusiva: "falha", cancelada: "info" };
 
 async function pnCarregarNormas() {
-  try { pnNormas = (await pnNormasStore.listar()).sort((a, b) => (b.atualizadoEm || 0) - (a.atualizadoEm || 0)); }
+  // Reavalia as páginas com as regras atuais (marca d'água, numeração impressa) — vale também para normas antigas.
+  try { pnNormas = (await pnNormasStore.listar()).map(pnNormaAtualizada).sort((a, b) => (b.atualizadoEm || 0) - (a.atualizadoEm || 0)); }
   catch (e) { pnNormas = []; toast(tr3("Não foi possível ler as normas salvas neste navegador.", "Could not read the standards saved in this browser.", "保存済み規格を読み込めません。")); }
   pnRenderNormas();
 }
@@ -8958,18 +9867,20 @@ function pnRenderNormas() {
   PN.normaSelect.value = pnPrefs.normaId || "";
   pnRenderAvisoSelecionada();
   PN.lista.innerHTML = pnNormas.length ? pnNormas.map((n) => {
-    const comTexto = n.paginas.filter((p) => (p.texto || "").replace(/\s/g, "").length >= 30 || (p.textoIA || "").trim()).length;
+    const comTexto = n.paginas.filter((p) => !p.qualidade.semTexto || (p.textoIA || "").trim()).length;
+    const lerPorImagem = n.paginas.filter(pnPrecisaOcr).length;
     const alertas = (n.avisos || []).filter((a) => a.nivel !== "info").length;
     return `<li class="rounded-rinnai border border-rinnai-line p-3">
       <div class="flex items-start gap-3">
         <div class="min-w-0 flex-1">
           <p class="truncate text-[13px] font-semibold text-rinnai-g1">${esc(pnRotuloNorma(n) || n.arquivoNome || "—")}</p>
           <p class="mt-0.5 text-[11px] text-rinnai-g3">${esc((n.tipo || "texto").toUpperCase())} · ${n.paginas.length} ${esc(n.paginado ? tr3("página(s)", "page(s)", "ページ") : tr3("bloco(s)", "block(s)", "ブロック"))} · ${comTexto} ${esc(tr3("com texto", "with text", "テキストあり"))}${n.arquivoNome ? " · " + esc(n.arquivoNome) : ""}</p>
-          ${alertas ? `<p class="mt-1">${pnBadge(pnTextoUtil(n) ? "alerta" : "falha", tr3(`${alertas} aviso(s) de qualidade`, `${alertas} quality warning(s)`, `品質警告 ${alertas}`))}</p>` : ""}
+          ${alertas ? `<p class="mt-1">${pnBadge(pnTextoUtil(n) ? "alerta" : "falha", tr3(`${alertas} aviso(s) de qualidade`, `${alertas} quality warning(s)`, `品質警告 ${alertas}`))}${lerPorImagem && n.blob ? " " + pnBadge("info", tr3(`${lerPorImagem} pág. serão lidas por imagem na pesquisa`, `${lerPorImagem} page(s) will be read as images when searching`, `${lerPorImagem} ページ OCR 予定`)) : ""}</p>` : ""}
         </div>
         <div class="flex shrink-0 flex-wrap justify-end gap-1.5">
           <button type="button" data-pn-ver="${esc(n.id)}" class="btn-ghost !px-2.5 !py-1 !text-[11.5px]">${esc(tr3("Ver", "View", "表示"))}</button>
           <button type="button" data-pn-substituir="${esc(n.id)}" class="btn-ghost !px-2.5 !py-1 !text-[11.5px]">${esc(tr3("Substituir", "Replace", "差し替え"))}</button>
+          ${n.blob ? `<button type="button" data-pn-reprocessar="${esc(n.id)}" title="${esc(tr3("Extrair de novo o texto do arquivo guardado com as regras atuais (mantém as leituras por imagem)", "Re-extract the stored file with the current rules (keeps image readings)", "現在のルールで再抽出"))}" class="btn-ghost !px-2.5 !py-1 !text-[11.5px]">${esc(tr3("Reprocessar", "Reprocess", "再処理"))}</button>` : ""}
           <button type="button" data-pn-remover="${esc(n.id)}" title="${esc(tr3("Remover", "Remove", "削除"))}" class="btn-ghost !px-2.5 !py-1 !text-[11.5px]">✕</button>
         </div>
       </div>
@@ -9044,7 +9955,9 @@ async function pnSalvarNovaNorma(ev) {
   pnPrefs.normaId = norma.id; pnSalvarPrefs();
   pnAbrirFormulario(false);
   await pnCarregarNormas();
-  toast(pnTextoUtil(norma) ? tr3("Norma salva neste navegador.", "Standard saved in this browser.", "保存しました。") : tr3("Norma salva, mas sem texto legível — transcreva as páginas antes de pesquisar.", "Saved, but with no readable text — transcribe pages before searching.", "保存しましたが、テキストがありません。"));
+  toast(pnTextoUtil(norma) ? tr3("Norma salva neste navegador.", "Standard saved in this browser.", "保存しました。")
+    : pnPesquisavel(norma) ? tr3("Norma salva. Ela não tem texto selecionável: na pesquisa, as páginas serão lidas por imagem (OCR com o Gemini) antes da resposta.", "Saved. It has no selectable text: when searching, pages will be read as images (OCR with Gemini) before the answer.", "保存しました。検索時に画像として読み取ります。")
+    : tr3("Norma salva, mas sem texto legível.", "Saved, but with no readable text.", "保存しましたが、テキストがありません。"));
 }
 async function pnSubstituirArquivo(file) {
   const n = pnNormas.find((x) => x.id === pnSubstituirId);
@@ -9073,7 +9986,7 @@ async function pnRemoverNorma(id) {
 function pnAbrirNorma(id) {
   const n = pnNormas.find((x) => x.id === id);
   if (!n) return;
-  const semTexto = n.paginas.filter((p) => p.qualidade.semTexto && !(p.textoIA || "").trim()).map((p) => p.n);
+  const semTexto = n.paginas.filter(pnPrecisaOcr).map((p) => p.n);
   const podeTranscrever = n.tipo === "pdf" && n.blob;
   PN.normaModalBody.innerHTML = `
     <form data-pn-meta="${esc(n.id)}" class="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -9085,7 +9998,7 @@ function pnAbrirNorma(id) {
     <div class="mt-4 space-y-1 text-[12px] text-rinnai-g2">${(n.avisos || []).map((a) => `<p>${a.nivel === "falha" ? "⛔" : a.nivel === "alerta" ? "⚠" : "ℹ"} ${esc(a.texto)}</p>`).join("")}</div>
     ${n.tipo === "pdf" ? `<div class="mt-4 rounded-rinnai border border-rinnai-line bg-rinnai-g5 p-3">
       <p class="text-[12.5px] font-semibold text-rinnai-g1">${esc(tr3("Transcrever páginas com IA", "Transcribe pages with AI", "AI でページを転写"))}</p>
-      ${podeTranscrever ? `<p class="mt-1 text-[11.5px] text-rinnai-g2">${esc(tr3("Para páginas digitalizadas ou tabelas mal extraídas. A imagem de cada página é enviada ao Gemini; o resultado fica marcado como \"transcrição por IA\" e recebe ressalva nas pesquisas. Máximo de 15 páginas por vez.", "For scanned pages or badly extracted tables. Each page image is sent to Gemini; the result is flagged as \"AI transcription\". Up to 15 pages at a time.", "スキャンページ用。各ページ画像を Gemini に送信します。"))}</p>
+      ${podeTranscrever ? `<p class="mt-1 text-[11.5px] text-rinnai-g2">${esc(tr3("Páginas sem texto selecionável são lidas por imagem AUTOMATICAMENTE na pesquisa, antes da resposta. Use este campo para ler antes ou para refazer páginas específicas (ex.: tabelas mal extraídas). A imagem de cada página é enviada ao Gemini; o resultado fica marcado como \"transcrição por IA\" e recebe ressalva nas pesquisas. Máximo de 15 páginas por vez.", "Pages without selectable text are read as images AUTOMATICALLY when searching, before the answer. Use this to read them earlier or redo specific pages. Each page image is sent to Gemini; the result is flagged as \"AI transcription\". Up to 15 pages at a time.", "テキストのないページは検索時に自動で画像読み取りします。"))}</p>
       <div class="mt-2 flex flex-wrap items-center gap-2">
         <input id="pnTranscreverPaginas" class="field !w-48 !py-1.5 !text-[12.5px]" value="${esc(pnFaixas(semTexto).replace(/–/g, "-"))}" placeholder="${esc(tr3("ex.: 3-5, 8", "e.g. 3-5, 8", "例: 3-5, 8"))}" />
         <button type="button" data-pn-transcrever="${esc(n.id)}" class="btn-ghost !px-3 !py-1.5 !text-[12px]">${esc(tr3("Transcrever", "Transcribe", "転写"))}</button>
@@ -9094,10 +10007,10 @@ function pnAbrirNorma(id) {
     </div>` : ""}
     <div class="mt-4 space-y-2">${n.paginas.map((p) => `
       <details class="rounded-rinnai border border-rinnai-line">
-        <summary class="cursor-pointer px-3 py-2 text-[12.5px] font-semibold text-rinnai-g1">${esc(n.paginado ? tr3("Página", "Page", "ページ") : tr3("Bloco", "Block", "ブロック"))} ${p.n}
+        <summary class="cursor-pointer px-3 py-2 text-[12.5px] font-semibold text-rinnai-g1">${esc(n.paginado ? tr3("Página", "Page", "ページ") : tr3("Bloco", "Block", "ブロック"))} ${p.n}${p.impressa && p.impressa !== String(p.n) ? ` <span class="font-normal text-rinnai-g3">${esc(tr3(`(impressa ${p.impressa})`, `(printed ${p.impressa})`, `(印刷 ${p.impressa})`))}</span>` : ""}
           <span class="ml-1 font-normal text-rinnai-g3">· ${(p.texto || "").length.toLocaleString("pt-BR")} ${esc(tr3("caracteres", "characters", "文字"))}</span>
           ${p.qualidade.avisos.map((a) => " " + pnBadge(a === "sem_texto" || a === "texto_suspeito" ? "alerta" : "info", PN_AVISO_ROTULO[a] ? PN_AVISO_ROTULO[a]().split(" (")[0] : a)).join("")}
-          ${(p.textoIA || "").trim() ? " " + pnBadge("info", tr3("transcrição IA", "AI transcription", "AI 転写")) : ""}
+          ${(p.textoIA || "").trim() ? " " + pnBadge("info", p.ocrAuto ? tr3("lida por imagem na pesquisa", "read as image during search", "検索時 OCR") : tr3("transcrição IA", "AI transcription", "AI 転写")) : ""}
         </summary>
         <pre class="max-h-72 overflow-auto whitespace-pre-wrap border-t border-rinnai-line px-3 py-2 font-sans text-[12px] leading-relaxed text-rinnai-g2">${esc(p.texto || tr3("(sem texto extraído)", "(no extracted text)", "(テキストなし)"))}</pre>
         ${(p.textoIA || "").trim() ? `<p class="border-t border-rinnai-line px-3 pt-2 text-[11px] font-bold uppercase tracking-wide text-rinnai-g3">${esc(tr3("Transcrição por IA — conferir com o original", "AI transcription — check against the original", "AI 転写 — 原本と照合"))}</p><pre class="max-h-72 overflow-auto whitespace-pre-wrap px-3 pb-2 font-sans text-[12px] leading-relaxed text-rinnai-g2">${esc(p.textoIA)}</pre>` : ""}
@@ -9117,66 +10030,116 @@ function pnParseFaixas(txt, max) {
 }
 const PN_PROMPT_TRANSCRICAO = [
   "[PESQUISADOR DE NORMAS · ETAPA=TRANSCRICAO]",
-  "Transcreva LITERALMENTE todo o texto visível nesta página de norma técnica, na ordem de leitura.",
+  "Transcreva LITERALMENTE todo o texto visível nesta página de norma técnica, na ordem de leitura, NO IDIOMA ORIGINAL.",
+  "Inclua títulos e números de seção, cabeçalho, rodapé e a numeração impressa da página exatamente como aparecem (cada um em sua linha).",
   "Tabelas em Markdown (| coluna | coluna |), preservando valores, unidades, notas e rodapés.",
   "Não resuma, não corrija, não complete, não traduza, não interprete. Trecho ilegível → [ilegível].",
   "Figuras: transcreva só textos e cotas visíveis e escreva [FIGURA — conteúdo gráfico não transcrito].",
   "Responda somente com a transcrição.",
 ].join("\n");
+async function pnRenderizarPaginaJpeg(pdf, num) {
+  const page = await pdf.getPage(num);
+  const vp1 = page.getViewport({ scale: 1 });
+  const vp = page.getViewport({ scale: Math.min(2.2, 1800 / Math.max(vp1.width, vp1.height)) });
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+  const c2 = canvas.getContext("2d");
+  c2.fillStyle = "#fff"; c2.fillRect(0, 0, canvas.width, canvas.height);
+  await page.render({ canvasContext: c2, viewport: vp }).promise;
+  const base64 = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
+  canvas.width = canvas.height = 0;
+  return base64;
+}
+/* Lê páginas por imagem com o Gemini (OCR) e grava cada transcrição na norma
+   (IndexedDB) a cada poucas páginas — uma interrupção não perde o que foi lido.
+   Usada pela pesquisa (automática) e pelo botão "Transcrever" (manual). */
+async function pnOcrPaginas(normaInicial, nums, opts) {
+  const o = opts || {};
+  let norma = normaInicial;
+  const feitas = [], falhas = [];
+  let pendentesGravar = [], chamadas = 0, interrompido = null, erroGravar = null, pdf = null, proximo = 0;
+  const gravar = async () => {
+    if (!pendentesGravar.length) return;
+    const lote = new Map(pendentesGravar.map((f) => [f.num, f.texto]));
+    pendentesGravar = [];
+    const paginas = pnAvaliarPaginas(norma.paginas.map((p) => (lote.has(p.n) ? { ...p, textoIA: lote.get(p.n), ocrAuto: !!o.automatico } : p)), norma.paginado);
+    norma = { ...norma, paginas, avisos: pnAvaliarDocumento(paginas, norma.paginado), atualizadoEm: Date.now() };
+    const i = pnNormas.findIndex((x) => x.id === norma.id);
+    if (i >= 0) pnNormas[i] = norma;
+    try { await pnNormasStore.salvar(norma); } catch (err) { erroGravar = err; }
+  };
+  try {
+    pdf = await pdfjsLib.getDocument({ data: await norma.blob.arrayBuffer() }).promise;
+    const trabalhador = async () => {
+      while (!interrompido && proximo < nums.length) {
+        const num = nums[proximo++];
+        if (o.progresso) o.progresso({ atual: num, feitas: feitas.length, falhas: falhas.length, total: nums.length });
+        try {
+          const base64 = await pnRenderizarPaginaJpeg(pdf, num);
+          chamadas++;
+          const r = await pnChamarGemini(PN_PROMPT_TRANSCRICAO, "", `Pesquisador · Transcrição p. ${num}`,
+            { signal: o.signal, parts: [{ text: `Transcreva a página ${num}.` }, { inlineData: { mimeType: "image/jpeg", data: base64 } }], maxOutputTokens: 8192, timeoutMs: 120000 });
+          const texto = cleanMarkdownFences(r.texto).trim();
+          const legivel = texto.replace(/\[(?:ileg[íi]vel|illegible)[^\]]*\]|\[FIGURA[^\]]*\]/gi, "").replace(/\s/g, "");
+          if (legivel.length < 10) throw new Error(texto.replace(/\s/g, "").length < 10 ? tr3("transcrição vazia", "empty transcription", "空の転写") : tr3("nenhum texto legível na imagem da página", "no legible text in the page image", "判読可能な文字なし"));
+          feitas.push({ num, texto }); pendentesGravar.push({ num, texto });
+          if (pendentesGravar.length >= 4) await gravar();
+        } catch (err) {
+          falhas.push({ num, erro: (err && err.message) || String(err) });
+          if ((o.signal && o.signal.aborted) || (err && (err.name === "AbortError" || err.fatal))) interrompido = err;
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.max(1, Math.min(o.paralelo || 1, nums.length)) }, trabalhador));
+  } finally {
+    await gravar();
+    try { if (pdf) await pdf.destroy(); } catch (e) {}
+  }
+  feitas.sort((x, y) => x.num - y.num); falhas.sort((x, y) => x.num - y.num);
+  return { norma, feitas, falhas, chamadas, interrompido, erroGravar };
+}
 async function pnTranscrever(id) {
-  if (pnTranscricaoAtiva) return;
+  if (pnTranscricaoAtiva || pnPesquisaAtiva) return;
   const n = pnNormas.find((x) => x.id === id);
   const status = el("pnTranscreverStatus");
   const paginas = pnParseFaixas((el("pnTranscreverPaginas") || {}).value, n ? n.paginas.length : 0);
   if (!n || !n.blob) return;
   if (!paginas.length) { toast(tr3("Informe as páginas, ex.: 3-5, 8", "Enter pages, e.g. 3-5, 8", "ページを入力")); return; }
-  if (paginas.length > 15) { toast(tr3("No máximo 15 páginas por vez.", "At most 15 pages at a time.", "最大 15 ページ")); return; }
+  if (paginas.length > 15) { toast(tr3("No máximo 15 páginas por vez. (Na pesquisa, as páginas sem texto são lidas automaticamente, sem esse limite.)", "At most 15 pages at a time. (When searching, pages without text are read automatically, without this limit.)", "最大 15 ページ")); return; }
   if (!hasApiKey()) { toast(t("toast.needKey")); openGlobalKeyModal(); return; }
   const ctrl = new AbortController();
   pnTranscricaoAtiva = ctrl;
-  const feitas = [], falhas = [];
-  let pdf;
+  let res = null;
   try {
-    pdf = await pdfjsLib.getDocument({ data: await n.blob.arrayBuffer() }).promise;
-    for (const num of paginas) {
-      if (status) status.textContent = tr3(`Transcrevendo página ${num}… (${feitas.length + falhas.length + 1}/${paginas.length})`, `Transcribing page ${num}…`, `転写中 ${num}…`);
-      try {
-        const page = await pdf.getPage(num);
-        const vp1 = page.getViewport({ scale: 1 });
-        const vp = page.getViewport({ scale: Math.min(2.2, 1800 / Math.max(vp1.width, vp1.height)) });
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
-        const c2 = canvas.getContext("2d");
-        c2.fillStyle = "#fff"; c2.fillRect(0, 0, canvas.width, canvas.height);
-        await page.render({ canvasContext: c2, viewport: vp }).promise;
-        const base64 = canvas.toDataURL("image/jpeg", 0.85).split(",")[1];
-        const r = await pnChamarGemini(PN_PROMPT_TRANSCRICAO, "", `Pesquisador · Transcrição p. ${num}`,
-          { signal: ctrl.signal, parts: [{ text: `Transcreva a página ${num}.` }, { inlineData: { mimeType: "image/jpeg", data: base64 } }], maxOutputTokens: 8192, timeoutMs: 120000 });
-        const texto = cleanMarkdownFences(r.texto).trim();
-        if (texto.replace(/\s/g, "").length < 10) throw new Error(tr3("transcrição vazia", "empty transcription", "空の転写"));
-        feitas.push({ num, texto });
-      } catch (err) {
-        if (ctrl.signal.aborted || (err && (err.name === "AbortError" || err.fatal))) { falhas.push({ num, erro: err.message }); break; }
-        falhas.push({ num, erro: err.message });
-      }
-    }
+    res = await pnOcrPaginas(n, paginas, { signal: ctrl.signal, paralelo: 1,
+      progresso: (x) => { const st = el("pnTranscreverStatus"); if (st) st.textContent = tr3(`Transcrevendo página ${x.atual}… (${x.feitas + x.falhas + 1}/${x.total})`, `Transcribing page ${x.atual}…`, `転写中 ${x.atual}…`); } });
   } catch (err) {
     toast(tr3("Falha ao abrir o PDF: ", "Failed to open the PDF: ", "PDF を開けません: ") + (err.message || err));
-  } finally {
-    try { if (pdf) await pdf.destroy(); } catch (e) {}
-    pnTranscricaoAtiva = null;
-  }
-  if (feitas.length) {
-    const nova = { ...n, paginas: n.paginas.map((p) => { const f = feitas.find((x) => x.num === p.n); return f ? { ...p, textoIA: f.texto } : p; }), atualizadoEm: Date.now() };
-    nova.avisos = pnAvaliarDocumento(nova.paginas, nova.paginado);
-    try { await pnNormasStore.salvar(nova); } catch (err) { toast(err.message); return; }
-    await pnCarregarNormas();
-    pnAbrirNorma(id);
-  }
-  const msg = tr3(`${feitas.length} página(s) transcrita(s)${falhas.length ? `; falharam: ${falhas.map((f) => f.num).join(", ")} (${falhas[falhas.length - 1].erro})` : ""}.`, `${feitas.length} page(s) transcribed${falhas.length ? `; failed: ${falhas.map((f) => f.num).join(", ")}` : ""}.`, `${feitas.length} ページ転写`);
+  } finally { pnTranscricaoAtiva = null; }
+  if (!res) return;
+  if (res.erroGravar) toast(res.erroGravar.message || String(res.erroGravar));
+  if (res.feitas.length) { await pnCarregarNormas(); pnAbrirNorma(id); }
+  const msg = tr3(`${res.feitas.length} página(s) transcrita(s)${res.falhas.length ? `; falharam: ${res.falhas.map((f) => f.num).join(", ")} (${res.falhas[res.falhas.length - 1].erro})` : ""}.`, `${res.feitas.length} page(s) transcribed${res.falhas.length ? `; failed: ${res.falhas.map((f) => f.num).join(", ")}` : ""}.`, `${res.feitas.length} ページ転写`);
   toast(msg);
-  const st = el("pnTranscreverStatus");
+  const st = el("pnTranscreverStatus") || status;
   if (st) st.textContent = msg;
+}
+/* Reprocessa o PDF guardado com o extrator atual (marca d'água, imagem,
+   numeração impressa), mantendo as transcrições por imagem já feitas. */
+async function pnReprocessarNorma(id) {
+  const n = pnNormas.find((x) => x.id === id);
+  if (!n) return;
+  if (!n.blob) { toast(tr3("O arquivo original não está guardado neste navegador (ex.: norma restaurada de backup). Use \"Substituir\" com o arquivo.", "The original file is not stored in this browser. Use \"Replace\" with the file.", "元のファイルがありません。")); return; }
+  let doc;
+  try { toast(tr3("Reprocessando o documento…", "Reprocessing the document…", "再処理中…")); doc = await pnExtrairArquivo(new File([n.blob], n.arquivoNome || "norma.pdf", { type: n.blob.type || "application/pdf" })); }
+  catch (err) { toast(tr3("Não foi possível reprocessar: ", "Could not reprocess: ", "再処理できません: ") + (err.message || err)); return; }
+  const ia = new Map(n.paginas.filter((p) => (p.textoIA || "").trim()).map((p) => [p.n, p]));
+  const paginas = pnAvaliarPaginas(doc.paginas.map((p) => (ia.has(p.n) ? { ...p, textoIA: ia.get(p.n).textoIA, ocrAuto: ia.get(p.n).ocrAuto } : p)), doc.paginado);
+  const nova = { ...n, paginado: doc.paginado, paginas, avisos: pnAvaliarDocumento(paginas, doc.paginado), atualizadoEm: Date.now() };
+  try { await pnNormasStore.salvar(nova); } catch (err) { toast(err.message || String(err)); return; }
+  await pnCarregarNormas();
+  const ocr = paginas.filter(pnPrecisaOcr).map((p) => p.n);
+  toast(tr3(`Documento reprocessado: ${paginas.filter((p) => !p.qualidade.semTexto).length}/${paginas.length} página(s) com texto selecionável${ocr.length ? `; ${ocr.length} serão lidas por imagem na próxima pesquisa (${pnFaixas(ocr)})` : ""}.`, `Document reprocessed: ${paginas.filter((p) => !p.qualidade.semTexto).length}/${paginas.length} page(s) with selectable text${ocr.length ? `; ${ocr.length} will be read as images on the next search` : ""}.`, "再処理しました。"));
 }
 async function pnSalvarMetadados(form) {
   const n = pnNormas.find((x) => x.id === form.getAttribute("data-pn-meta"));
@@ -9192,7 +10155,7 @@ async function pnSalvarMetadados(form) {
 function pnRenderEtapas(fonte) {
   PN.progresso.classList.remove("hidden");
   PN.progressoModo.textContent = fonte.modo === "A" ? tr3("Modo A · norma fornecida", "Mode A · provided standard", "モード A") : tr3("Modo B · pesquisa independente", "Mode B · independent search", "モード B");
-  PN.etapas.innerHTML = PN_ETAPAS.map((def) => {
+  PN.etapas.innerHTML = PN_ETAPAS.filter((def) => !def.soModo || fonte.etapas.some((x) => x.id === def.id)).map((def) => {
     const e = fonte.etapas.find((x) => x.id === def.id) || { status: "pendente" };
     const icone = {
       pendente: `<span class="h-2.5 w-2.5 rounded-full bg-rinnai-g3"></span>`,
@@ -9204,7 +10167,7 @@ function pnRenderEtapas(fonte) {
     }[e.status] || "";
     const estado = {
       pendente: tr3("aguardando", "waiting", "待機中"),
-      executando: e.tentativas > 1 ? tr3("em execução — nova tentativa", "running — retry", "実行中 — 再試行") : tr3("em execução", "running", "実行中"),
+      executando: e.progresso || (e.tentativas > 1 ? tr3("em execução — nova tentativa", "running — retry", "実行中 — 再試行") : tr3("em execução", "running", "実行中")),
       concluida: (e.resumo || tr3("concluída", "completed", "完了")) + (e.tentativas > 1 ? tr3(" (após nova tentativa)", " (after retry)", " (再試行後)") : ""),
       falhou: tr3("FALHOU: ", "FAILED: ", "失敗: ") + (e.resumo || ""),
       cancelada: tr3("cancelada", "cancelled", "キャンセル"),
@@ -9266,7 +10229,7 @@ function pnRenderResultado(reg) {
     const refs = reg.afirmacoes.filter((a) => a.ref || a.fonteUrl);
     if (refs.length) blocos.push(pnSecao(tr3("Referências exatas", "Exact references", "正確な参照"), `${reg.modo === "A" && reg.norma ? `<p class="mb-1.5 text-[12.5px] font-semibold text-rinnai-g1">${esc(reg.norma.rotulo)}</p>` : ""}<ul class="space-y-1 text-[13px]">${refs.map((a) => `<li><b>${esc(a.id)}</b> — ${esc(a.ref || "")}${a.localizacao ? ` <span class="text-[11.5px] text-rinnai-g3">(${esc(tr3("trecho localizado: ", "excerpt located: ", "抜粋: ") + a.localizacao)})</span>` : ""}${a.fonteUrl ? ` · <a class="text-rinnai-red underline" href="${esc(a.fonteUrl)}" target="_blank" rel="noopener noreferrer">${esc(pnDominio(a.fonteUrl) || a.fonteUrl)}</a>` : ""}</li>`).join("")}</ul>${reg.modo === "A" && refs.some((a) => /\*/.test(a.ref)) ? `<p class="mt-1 text-[11px] text-rinnai-g3">* ${esc(tr3("seção detectada automaticamente pela posição do trecho no documento", "clause detected automatically from the excerpt position", "抜粋位置から自動検出"))}</p>` : ""}`));
     const fund = reg.fundamentacao ? `<p>${pnComMarcadores(reg.fundamentacao)}</p>` : "";
-    const trechos = reg.afirmacoes.filter((a) => a.trecho).map((a) => `<blockquote class="mt-2 border-l-4 border-rinnai-line pl-3 text-[12.5px] text-rinnai-g2"><b class="text-rinnai-g1">${esc(a.id)}</b> “${esc(a.trecho)}”</blockquote>`).join("");
+    const trechos = reg.afirmacoes.filter((a) => a.trecho).map((a) => `<blockquote class="mt-2 border-l-4 border-rinnai-line pl-3 text-[12.5px] text-rinnai-g2"><b class="text-rinnai-g1">${esc(a.id)}</b>${a.paginaPdf ? ` <span class="text-[11px] text-rinnai-g3">${esc(pnRotuloPaginas(a))}</span>` : ""} “${esc(a.trecho)}”${a.traducao ? `<span class="mt-1 block text-[12px] text-rinnai-g3">${esc(tr3("Tradução livre feita pela IA (não oficial — vale o texto original): ", "Free AI translation (unofficial — the original text prevails): ", "AI による参考訳(原文が優先): "))}“${esc(a.traducao)}”</span>` : ""}</blockquote>`).join("");
     blocos.push(pnSecao(tr3("Fundamentação", "Grounds", "根拠"), fund + trechos));
     if (reg.interpretacoes.length) blocos.push(pnSecao(tr3("Interpretações técnicas (não são exigências da norma)", "Technical interpretations (not requirements)", "技術的解釈(要求事項ではない)"), `<ul class="list-disc space-y-1 pl-5">${reg.interpretacoes.map((x) => `<li>${esc(x.texto)} <span class="text-[11.5px] text-rinnai-g3">(${esc(tr3("base: ", "basis: ", "根拠: ") + x.base.join(", "))}${x.justificativa ? " — " + esc(x.justificativa) : ""})</span></li>`).join("")}</ul>`));
   }
@@ -9303,13 +10266,37 @@ function pnRenderResultado(reg) {
     </details>`;
   }).join("");
   const removidos = (reg.removidas || []).length + (reg.removidasTexto || []).length + (reg.interpDescartadas || []).length;
-  blocos.push(pnSecao(tr3("Status de verificação", "Verification status", "検証状況"), `<p class="mb-2 text-[12.5px]">${esc(reg.completo ? tr3("As 4 revisões foram executadas antes da liberação desta resposta.", "All 4 reviews ran before this answer was released.", "4 つのレビューを実行済み。") : tr3("As 4 revisões NÃO foram todas concluídas — resultado não validado.", "The 4 reviews were NOT all completed — result not validated.", "レビュー未完了 — 未検証。"))}</p><div class="space-y-1.5">${etapasHtml}</div>
+  blocos.push(pnSecao(tr3("Status de verificação", "Verification status", "検証状況"), `${reg.busca ? pnBuscaHtml(reg) : ""}<p class="mb-2 text-[12.5px]">${esc(reg.completo ? tr3("As 4 revisões foram executadas antes da liberação desta resposta.", "All 4 reviews ran before this answer was released.", "4 つのレビューを実行済み。") : tr3("As 4 revisões NÃO foram todas concluídas — resultado não validado.", "The 4 reviews were NOT all completed — result not validated.", "レビュー未完了 — 未検証。"))}</p><div class="space-y-1.5">${etapasHtml}</div>
     ${removidos ? `<details class="mt-2 rounded-rinnai border border-rinnai-line px-3 py-2"><summary class="cursor-pointer text-[12.5px] font-semibold text-rinnai-g1">${esc(tr3(`Itens descartados na verificação (${removidos})`, `Items discarded during verification (${removidos})`, `検証で破棄 (${removidos})`))}</summary>
       <ul class="mt-1 list-disc space-y-1 pl-5 text-[12px] text-rinnai-g2">${(reg.removidas || []).map((a) => `<li><b>${esc(a.id)}</b> “${esc(a.texto)}” — ${esc(a.motivos.join("; "))}</li>`).join("")}${(reg.removidasTexto || []).map((x) => `<li>${esc(x)}</li>`).join("")}${(reg.interpDescartadas || []).map((x) => `<li>${esc(tr3("Interpretação descartada (sem base confirmada ou com valores novos): ", "Interpretation discarded: ", "解釈を破棄: ") + x)}</li>`).join("")}</ul></details>` : ""}
     ${(reg.parciaisNaoValidadas || []).length ? `<details class="mt-2 rounded-rinnai border border-amber-300 px-3 py-2"><summary class="cursor-pointer text-[12.5px] font-semibold text-amber-800 dark:text-amber-200">${esc(tr3("Dados parciais — NÃO validados (as revisões não terminaram)", "Partial data — NOT validated (reviews did not finish)", "部分データ — 未検証"))}</summary><ul class="mt-1 list-disc space-y-1 pl-5 text-[12px] text-rinnai-g2">${reg.parciaisNaoValidadas.map((a) => `<li>${esc(a.texto)}${a.ref ? ` (${esc(a.ref)})` : ""}</li>`).join("")}</ul></details>` : ""}`));
   h.push(`<div class="mt-4 space-y-4">${blocos.filter(Boolean).join("")}</div>`);
   PN.resultado.innerHTML = h.join("");
   PN.acoes.classList.remove("hidden"); PN.acoes.classList.add("flex");
+}
+
+const pnRotuloPaginas = (a) => (a.paginaImpressa && a.paginaImpressa !== a.paginaPdf
+  ? tr3(`p. ${a.paginaPdf} do PDF · página impressa ${a.paginaImpressa}`, `PDF p. ${a.paginaPdf} · printed page ${a.paginaImpressa}`, `PDF ${a.paginaPdf} · 印刷 ${a.paginaImpressa}`)
+  : tr3(`p. ${a.paginaPdf} do PDF`, `PDF p. ${a.paginaPdf}`, `PDF ${a.paginaPdf}`));
+const PN_TIPO_RODADA = {
+  focada: () => tr3("trechos mais relevantes", "most relevant excerpts", "関連抜粋"),
+  ampliada: () => tr3("trechos adicionais (busca ampliada)", "additional excerpts (wider search)", "追加抜粋"),
+  integral: () => tr3("leitura integral", "full reading", "全文"),
+  restante: () => tr3("leitura do restante do documento", "reading the rest of the document", "残り全文"),
+  lote: () => tr3("leitura integral em partes", "full reading in parts", "分割全文"),
+};
+/* Transparência: como a informação foi procurada no documento (Modo A). */
+function pnBuscaHtml(reg) {
+  const b = reg.busca, cob = b.cobertura || {};
+  const un = b.paginado ? tr3("pág.", "p.", "p.") : tr3("blocos", "blocks", "ブロック");
+  const itens = [];
+  itens.push(tr3(`Idioma do documento: ${PN_IDIOMA_NOME[b.idioma] || "não identificado"}.`, `Document language: ${b.idioma || "unknown"}.`, `文書の言語: ${b.idioma || "?"}`));
+  if (b.ocr && (b.ocr.feitas.length || b.ocr.falhas.length)) itens.push(tr3(`Leitura por imagem (OCR com IA) nesta pesquisa: ${b.ocr.feitas.length ? pnFaixas(b.ocr.feitas) : "nenhuma"}${b.ocr.falhas.length ? `; falhou em ${pnFaixas(b.ocr.falhas)}` : ""}.`, `Image reading (AI OCR) in this search: ${pnFaixas(b.ocr.feitas) || "none"}${b.ocr.falhas.length ? `; failed on ${pnFaixas(b.ocr.falhas)}` : ""}.`, "OCR"));
+  if (b.conceitos.length) itens.push(tr3("Conceitos procurados (com equivalentes): ", "Concepts searched (with equivalents): ", "検索した概念: ") + b.conceitos.map((k) => `${k.orig}${k.termos.length ? " → " + k.termos.join(", ") : ""}`).join(" · "));
+  if (b.ranking && b.ranking.length) itens.push(tr3("Trechos mais bem pontuados: ", "Top-ranked excerpts: ", "上位抜粋: ") + b.ranking.slice(0, 5).map((r) => `${un} ${r.pagina}${r.impressa && r.impressa !== String(r.pagina) ? ` (impr. ${r.impressa})` : ""}${r.secao ? ` §${r.secao}` : ""} [${r.motivos.join(", ")}]`).join(" · "));
+  b.rodadas.forEach((r) => itens.push(tr3(`Rodada ${r.n} — ${(PN_TIPO_RODADA[r.tipo] || (() => r.tipo))()}${r.lotes ? ` ${r.lote}/${r.lotes}` : ""}: ${un} ${pnFaixas(r.paginas)} (${r.chars.toLocaleString("pt-BR")} caracteres) · IA: ${r.resposta} · ${r.afirmacoes} afirmação(ões), ${r.localizadas} com citação localizada${r.reancoragem ? " · " + r.reancoragem : ""}.`, `Round ${r.n} — ${r.tipo}: ${pnFaixas(r.paginas)} · AI: ${r.resposta} · ${r.afirmacoes} claim(s), ${r.localizadas} located${r.reancoragem ? " · " + r.reancoragem : ""}.`, `ラウンド ${r.n}`)));
+  itens.push(tr3(`Cobertura: ${cob.lidas}/${cob.total} ${un} lidas pela IA${cob.emBranco && cob.emBranco.length ? ` (${pnFaixas(cob.emBranco)} em branco)` : ""}${cob.naoLidas && cob.naoLidas.length ? `; não lidas: ${pnFaixas(cob.naoLidas)}` : ""}${cob.ilegiveis && cob.ilegiveis.length ? `; ilegíveis: ${pnFaixas(cob.ilegiveis)}` : ""}${b.encontrou && cob.naoLidas && cob.naoLidas.length ? " (a informação foi encontrada antes de ler o restante)" : ""}.`, `Coverage: ${cob.lidas}/${cob.total} read by the AI.`, `範囲: ${cob.lidas}/${cob.total}`));
+  return `<details class="mb-2 rounded-rinnai border border-rinnai-line px-3 py-2"><summary class="cursor-pointer text-[12.5px] font-semibold text-rinnai-g1">${esc(tr3("Como a informação foi procurada no documento", "How the information was searched in the document", "文書内の検索方法"))}</summary><ul class="mt-1 list-disc space-y-1 pl-5 text-[12px] text-rinnai-g2">${itens.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></details>`;
 }
 
 /* ---------- Relatório em Markdown ---------- */
@@ -9330,7 +10317,11 @@ function pnRelatorioMarkdown(reg) {
     if (refs.length) { L.push(H(tr3("Referências exatas", "Exact references", "参照"))); if (reg.modo === "A" && reg.norma) L.push(`${reg.norma.rotulo}:`); refs.forEach((a) => L.push(`- **${a.id}**: ${a.ref}${a.localizacao ? ` (${a.localizacao})` : ""}${a.fonteUrl ? ` — ${a.fonteUrl}` : ""}`)); L.push(""); }
     L.push(H(tr3("Fundamentação", "Grounds", "根拠")));
     if (reg.fundamentacao) L.push(reg.fundamentacao, "");
-    reg.afirmacoes.filter((a) => a.trecho).forEach((a) => L.push(`> **${a.id}** “${a.trecho.replace(/\n+/g, " ")}”`, ""));
+    reg.afirmacoes.filter((a) => a.trecho).forEach((a) => {
+      L.push(`> **${a.id}**${a.paginaPdf ? ` (${pnRotuloPaginas(a)})` : ""} “${a.trecho.replace(/\n+/g, " ")}”`);
+      if (a.traducao) L.push(`> ${tr3("Tradução livre feita pela IA (não oficial)", "Free AI translation (unofficial)", "AI 参考訳")}: “${a.traducao.replace(/\n+/g, " ")}”`);
+      L.push("");
+    });
     if (reg.interpretacoes.length) { L.push(H(tr3("Interpretações técnicas (não são exigências da norma)", "Technical interpretations (not requirements)", "技術的解釈"))); reg.interpretacoes.forEach((x) => L.push(`- ${x.texto} (${tr3("base", "basis", "根拠")}: ${x.base.join(", ")})`)); L.push(""); }
   }
   const lim = [...reg.limitacoes, ...reg.naoLocalizado.map((x) => tr3("Não localizado/confirmado: ", "Not found/confirmed: ", "未確認: ") + x), ...reg.divergencias.map((d) => tr3("Divergência", "Divergence", "相違") + (d.ids.length ? ` (${d.ids.join(" × ")})` : "") + ": " + d.descricao)];
@@ -9340,6 +10331,11 @@ function pnRelatorioMarkdown(reg) {
   reg.fontes.forEach((f) => L.push(`- ${f.dominio || f.titulo}: ${f.uri}`));
   (reg.linksDiretos || []).filter((l) => l.ok).forEach((l) => L.push(`- ${l.url}`));
   L.push("", H(tr3("Status de verificação", "Verification status", "検証状況")));
+  if (reg.busca) {
+    const b = reg.busca, cob = b.cobertura || {};
+    L.push(`- ${tr3("Busca no documento", "Document search", "文書検索")}: ${b.rodadas.map((r) => `${tr3("rodada", "round", "ラウンド")} ${r.n} (${(PN_TIPO_RODADA[r.tipo] || (() => r.tipo))()}; ${pnFaixas(r.paginas)}; ${r.localizadas} ${tr3("localizada(s)", "located", "件")})`).join("; ")}; ${tr3("cobertura", "coverage", "範囲")} ${cob.lidas}/${cob.total}${cob.ilegiveis && cob.ilegiveis.length ? `; ${tr3("ilegíveis", "unreadable", "判読不能")}: ${pnFaixas(cob.ilegiveis)}` : ""}`);
+    if (b.ocr && b.ocr.feitas.length) L.push(`- ${tr3("Leitura por imagem (OCR com IA)", "Image reading (AI OCR)", "OCR")}: ${pnFaixas(b.ocr.feitas)}`);
+  }
   reg.etapas.forEach((e) => { const d = PN_ETAPAS.find((x) => x.id === e.id); L.push(`- ${d ? d.nome() : e.id}: ${e.status}${e.resumo ? " — " + e.resumo : ""}`); });
   return L.join("\n");
 }
@@ -9413,8 +10409,9 @@ if (PN.modulo) {
   PN.form.addEventListener("submit", (e) => pnSalvarNovaNorma(e));
   PN.replaceInput.addEventListener("change", (e) => { pnSubstituirArquivo(e.target.files && e.target.files[0]); e.target.value = ""; });
   PN.lista.addEventListener("click", (e) => {
-    const ver = e.target.closest("[data-pn-ver]"), sub = e.target.closest("[data-pn-substituir]"), rem = e.target.closest("[data-pn-remover]");
-    if (ver) pnAbrirNorma(ver.getAttribute("data-pn-ver"));
+    const ver = e.target.closest("[data-pn-ver]"), sub = e.target.closest("[data-pn-substituir]"), rem = e.target.closest("[data-pn-remover]"), rep = e.target.closest("[data-pn-reprocessar]");
+    if (rep) { if (!pnPesquisaAtiva) pnReprocessarNorma(rep.getAttribute("data-pn-reprocessar")); }
+    else if (ver) pnAbrirNorma(ver.getAttribute("data-pn-ver"));
     else if (sub) { pnSubstituirId = sub.getAttribute("data-pn-substituir"); PN.replaceInput.click(); }
     else if (rem) pnRemoverNorma(rem.getAttribute("data-pn-remover"));
   });
