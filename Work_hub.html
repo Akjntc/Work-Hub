@@ -735,6 +735,11 @@
       class="grid h-11 w-11 shrink-0 place-items-center rounded-rinnai-lg border border-rinnai-line bg-rinnai-card text-rinnai-g1 shadow-md transition hover:border-rinnai-red hover:text-rinnai-red">
       <svg class="pointer-events-none h-[19px] w-[19px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>
     </button>
+    <!-- Aviso de privacidade (LGPD) — ver abrirAvisoPrivacidade() -->
+    <button id="btnHubPrivacy" type="button" title="Privacidade e proteção de dados (LGPD)" data-i18n-title="lgpd.title" aria-label="Privacidade e proteção de dados (LGPD)"
+      class="grid h-11 w-11 shrink-0 place-items-center rounded-rinnai-lg border border-rinnai-line bg-rinnai-card text-rinnai-g1 shadow-md transition hover:border-rinnai-red hover:text-rinnai-red">
+      <svg class="pointer-events-none h-[19px] w-[19px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v5c0 4.4 3 8.3 7 9.5 4-1.2 7-5.1 7-9.5V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+    </button>
     <!-- Seletor de idioma (PT / EN / JP) — mesmo <select>/applyLang() do Laboratório, ver .lang-select -->
     <select id="hubLangSelect" aria-label="Idioma / Language / 言語" class="lang-select h-11 shrink-0 rounded-rinnai-lg border border-rinnai-line bg-rinnai-card px-2 text-[12px] font-semibold text-rinnai-g1 shadow-md transition hover:border-rinnai-red focus:border-rinnai-red focus:outline-none">
       <option value="pt">PT</option>
@@ -1156,6 +1161,38 @@
         <svg class="pointer-events-none h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 20h16"/></svg>
         <span data-i18n="backup.import">Restaurar de um arquivo</span>
       </button>
+    </div>
+    <div class="mt-5 border-t border-rinnai-line pt-4">
+      <p class="text-[12px] leading-relaxed text-rinnai-g3" data-i18n="backup.lgpdNote">O arquivo de backup contém tudo o que você salvou (inclusive dados pessoais que estejam nos documentos). Guarde-o em local seguro e não o compartilhe.</p>
+      <button type="button" id="btnApagarTudo" class="btn-ghost mt-3 !px-5 !py-2.5 !text-[13px] !text-rinnai-red">
+        <svg class="pointer-events-none h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+        <span data-i18n="lgpd.apagarTudo">Apagar todos os meus dados deste navegador</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Aviso de privacidade (LGPD) — aberto na 1ª chamada à IA (garantirCienciaLGPD())
+     e pelo botão de escudo no Hub. Texto montado em renderAvisoPrivacidade(). -->
+<div id="privacyModal" class="fixed inset-0 z-[90] hidden items-center justify-center bg-black/50 p-4">
+  <div class="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-rinnai-lg border border-rinnai-line bg-rinnai-card shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
+    <div class="flex items-center justify-between gap-2 border-b border-rinnai-line px-6 py-4">
+      <h2 id="privacyTitle" class="text-[18px] font-bold text-rinnai-g1" data-i18n="lgpd.title">Privacidade e proteção de dados (LGPD)</h2>
+      <button type="button" data-close-privacy title="Fechar" class="grid h-8 w-8 place-items-center rounded-rinnai text-rinnai-g2 transition hover:bg-rinnai-g4 hover:text-rinnai-red">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="privacyBody" class="flex-1 space-y-3 overflow-y-auto px-6 py-4 text-[13px] leading-relaxed text-rinnai-g2"></div>
+    <div class="space-y-3 border-t border-rinnai-line px-6 py-4">
+      <label class="flex items-start gap-2 text-[13px] text-rinnai-g1">
+        <input type="checkbox" id="privacyMascarar" class="mt-0.5 h-4 w-4 shrink-0 accent-[#cf000e]" />
+        <span data-i18n="lgpd.mascarar">Mascarar dados pessoais (e-mail, CPF, RG, telefone, CEP e nomes após rótulos como "Responsável:") antes de enviar à IA — recomendado</span>
+      </label>
+      <p id="privacyStatus" class="text-[11.5px] text-rinnai-g3"></p>
+      <div class="flex flex-wrap justify-end gap-2">
+        <button type="button" data-close-privacy class="btn-ghost !px-5 !py-2.5 !text-[13px]" data-i18n="lgpd.fechar">Fechar</button>
+        <button type="button" id="btnPrivacyAceitar" class="btn-primary !px-5 !py-2.5 !text-[13px]" data-i18n="lgpd.aceitar">Li e concordo</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1903,8 +1940,8 @@
       <div>
         <h2 class="border-red text-[17px]">Configurações</h2>
         <p class="mt-2 pl-[19px] text-[12px] leading-relaxed text-rinnai-g2">
-          A chave fica salva apenas neste navegador (<code>localStorage</code>).
-          Ela não sai daqui e não existe cópia no código-fonte.
+          A chave fica salva apenas neste navegador (<code>localStorage</code>) e só é enviada
+          ao Google, no cabeçalho de cada chamada à IA. Não existe cópia no código-fonte.
         </p>
       </div>
     </div>
@@ -1925,6 +1962,8 @@
         <p class="mt-2 text-[11px] leading-relaxed text-rinnai-g2">
           Gere a sua chave gratuita em <span class="font-mono">aistudio.google.com/app/apikey</span>.
           O documento é montado seção por seção: 9 seções, 1 chamada por seção (rascunho + auto-revisão no mesmo prompt) — 9 chamadas por procedimento.
+          <b>LGPD:</b> na camada gratuita, o Google pode usar o conteúdo enviado para melhorar os produtos dele. Para documentos da empresa, use uma chave de projeto com faturamento ativado.
+          <button type="button" data-open-privacy class="font-semibold text-rinnai-red underline">Ver aviso de privacidade</button>
         </p>
       </div>
 
@@ -3273,6 +3312,8 @@
       </div>
       <p class="text-[11px] leading-relaxed text-rinnai-g2">
         Gere a sua chave gratuita em <span class="font-mono">aistudio.google.com/app/apikey</span>.
+        <b>LGPD:</b> na camada gratuita, o Google pode usar o conteúdo enviado para melhorar os produtos dele. Para documentos da empresa, use uma chave de projeto com faturamento ativado.
+        <button type="button" data-open-privacy class="font-semibold text-rinnai-red underline">Ver aviso de privacidade</button>
       </p>
       <div class="border-t border-rinnai-line pt-3">
         <label for="globalModelSelect" class="mb-1.5 block text-[13px] font-semibold">Modelo do Gemini</label>
@@ -3326,7 +3367,8 @@
    falhar por causa do modelo, ele silencia, loga "Falha no modelo X, tentando
    o próximo…" e passa para o seguinte. Só mostra erro fatal se TODOS falharem.
    O modelo montado dinamicamente na URL:
-     https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=…
+     https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent
+   (a chave vai no cabeçalho x-goog-api-key — nunca na URL; ver geminiHeaders())
    Para forçar um modelo específico, deixe-o sozinho no array.               */
 const FALLBACK_MODELS = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.7-flash-lite", "gemini-3.6-flash", "gemini-3.6-flash-lite", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
 let  ACTIVE_MODEL = null;     // último modelo que respondeu OK — tentado primeiro nas próximas chamadas
@@ -3412,6 +3454,134 @@ const MSG_SEM_CHAVE =
   "Clique no ícone de engrenagem (Configurações), no canto superior direito,\n" +
   "cole a chave no campo \"Google AI Studio API Key\" e clique em Salvar.\n\n" +
   "Você gera a chave gratuita em: aistudio.google.com/app/apikey";
+
+/* A chave vai no cabeçalho x-goog-api-key, nunca na query string: URL com
+   ?key= fica gravada em histórico, logs de proxy corporativo e ferramentas de
+   rede (LGPD art. 46 — medidas de segurança). */
+function geminiHeaders(key) {
+  return { "Content-Type": "application/json", "x-goog-api-key": key };
+}
+
+/* ----------------------------------------------------------------------------
+   1.d) PROTEÇÃO DE DADOS PESSOAIS (LGPD — Lei 13.709/2018)
+   ----------------------------------------------------------------------------
+   Todo conteúdo enviado ao Gemini passa por callGemini()/callGeminiChat(), e
+   os dois chamam prepararEnvioLGPD() antes do fetch:
+     • CIÊNCIA (art. 6º VI, art. 9º): na 1ª chamada à IA o usuário lê o aviso
+       de privacidade (#privacyModal) e confirma. Sem isso, nada é enviado.
+       Mudou o texto do aviso → suba LGPD_VERSAO_AVISO para pedir de novo.
+     • MINIMIZAÇÃO / PSEUDONIMIZAÇÃO (art. 6º III, art. 13): e-mail, CPF, RG,
+       telefone, CEP e nomes após rótulos ("Responsável:", "Elaborado por:"…)
+       viram marcadores {{DPn}} ANTES de sair do navegador. A resposta volta
+       com os marcadores e restaurarDadosPessoais() devolve os valores reais
+       localmente — o Google nunca recebe o dado, e o documento final fica
+       igual. Desligável no aviso de privacidade (padrão: ligado).
+   Limite conhecido: nomes soltos no texto (sem rótulo) e imagens não são
+   detectáveis por regex — o aviso orienta o usuário sobre isso.            */
+const LGPD_VERSAO_AVISO = 1;
+const LS_LGPD_CIENCIA = "global_lgpd_ciencia";
+const LS_LGPD_MASCARAR = "global_lgpd_mascarar";
+const LS_LGPD_DITADO = "global_lgpd_ditado_ciencia";
+/* Contato do Encarregado (DPO) exibido no aviso — preencher com o canal
+   oficial da empresa (art. 41 §1º). Vazio = texto genérico. */
+const LGPD_CONTATO_ENCARREGADO = "";
+
+function lgpdCienciaAtual() {
+  try {
+    const r = JSON.parse(localStorage.getItem(LS_LGPD_CIENCIA) || "null");
+    return !!r && r.versao === LGPD_VERSAO_AVISO;
+  } catch (e) { return false; }
+}
+function lgpdRegistrarCiencia() {
+  try { localStorage.setItem(LS_LGPD_CIENCIA, JSON.stringify({ versao: LGPD_VERSAO_AVISO, em: new Date().toISOString() })); } catch (e) {}
+}
+function lgpdMascararAtivo() {
+  try { return localStorage.getItem(LS_LGPD_MASCARAR) !== "0"; } catch (e) { return true; }
+}
+function lgpdSetMascarar(on) {
+  try { localStorage.setItem(LS_LGPD_MASCARAR, on ? "1" : "0"); } catch (e) {}
+}
+
+/* "Responsável" → [Rr][Ee][Ss]… — rótulo sem distinção de maiúsculas, mas o
+   nome em seguida PRECISA começar com maiúscula (flag "i" quebraria isso). */
+const semCaixa = (s) => s.replace(/[a-zà-ÿ]/g, (c) => `[${c}${c.toUpperCase()}]`);
+const ROTULOS_NOME = [
+  "elaborado por", "revisado por", "aprovado por", "verificado por", "executado por", "preparado por",
+  "emitido por", "realizado por", "responsável técnico", "responsável", "técnico responsável", "técnico",
+  "operador", "inspetor", "analista", "engenheiro", "engenheira", "assinatura", "solicitante", "contato", "nome",
+];
+const NOME_PROPRIO = "[A-ZÀ-Ý][a-zà-ÿ'’]+(?:[ \\t]+(?:d[aeo]s?|e|[A-ZÀ-Ý][a-zà-ÿ'’.]*)){0,5}";
+const PADROES_DADOS_PESSOAIS = [
+  { re: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g },
+  { re: /\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/g },
+  { re: /(\bCPF[\s:nº°.#-]*)(\d{11})\b/gi, grupo: 2 },
+  { re: /(\bRG[\s:nº°.#-]*)(\d[\dXx.\-]{5,12}[\dXx])/g, grupo: 2 },
+  { re: /(?:\+55\s?)?\(\d{2}\)\s?9?\d{4}[-\s]?\d{4}\b/g },
+  { re: /\+55\s?\d{2}\s?9?\d{4}[-\s]?\d{4}\b/g },
+  { re: /(\b(?:tel|telefone|fone|cel|celular|whatsapp)\.?[\s:]*)(\+?\d[\d() \t-]{7,18}\d)/gi, grupo: 2 },
+  { re: /(\bCEP[\s:nº°.#-]*)(\d{5}-?\d{3})\b/gi, grupo: 2 },
+  { re: new RegExp(`((?:${ROTULOS_NOME.map(semCaixa).join("|")})[ \\t]*:[ \\t]*)(${NOME_PROPRIO})`, "g"), grupo: 2 },
+];
+
+/* Troca cada dado pessoal por {{DPn}}; o mesmo valor reaproveita o mesmo
+   marcador. `mapa` acumula marcador → valor original para restaurar depois. */
+function pseudonimizarTexto(texto, mapa) {
+  if (!texto) return texto;
+  let out = String(texto);
+  for (const { re, grupo } of PADROES_DADOS_PESSOAIS) {
+    out = out.replace(re, (...m) => {
+      const valor = grupo ? m[grupo] : m[0];
+      if (/\{\{DP\d+\}\}/.test(valor)) return m[0];
+      let marcador = null;
+      for (const [k, v] of mapa) if (v === valor) { marcador = k; break; }
+      if (!marcador) { marcador = `{{DP${mapa.size + 1}}}`; mapa.set(marcador, valor); }
+      return grupo ? m[0].replace(valor, marcador) : marcador;
+    });
+  }
+  return out;
+}
+function restaurarDadosPessoais(texto, mapa) {
+  if (!mapa || !mapa.size || !texto) return texto;
+  return String(texto).replace(/\{\{\s*DP(\d+)\s*\}\}/g, (m, n) => mapa.get(`{{DP${n}}}`) ?? m);
+}
+const INSTRUCAO_MARCADORES =
+  "\n\nPROTEÇÃO DE DADOS: o conteúdo contém marcadores no formato {{DP1}}, {{DP2}}… que substituem " +
+  "dados pessoais. Mantenha cada marcador EXATAMENTE como está, onde ele fizer sentido no texto — " +
+  "não traduza, não altere, não remova e não tente adivinhar o valor original.";
+
+/* Ponto único antes de QUALQUER envio ao Google: exige a ciência do aviso e
+   pseudonimiza o texto (system prompt + partes de texto). Imagens seguem
+   como estão (os metadados EXIF já foram removidos na leitura — ver
+   imagemSemMetadados()). Devolve o mapa para restaurar a resposta. */
+async function prepararEnvioLGPD(systemPrompt, contents) {
+  if (!(await garantirCienciaLGPD())) {
+    throw fatal("Envio à IA cancelado: é preciso ler e aceitar o aviso de privacidade (LGPD) antes de usar os recursos de IA.");
+  }
+  const mapa = new Map();
+  if (!lgpdMascararAtivo()) return { systemPrompt, contents, mapa };
+  const novosContents = contents.map((c) => ({
+    ...c,
+    parts: (c.parts || []).map((p) => (typeof p.text === "string" ? { ...p, text: pseudonimizarTexto(p.text, mapa) } : p)),
+  }));
+  let sys = pseudonimizarTexto(systemPrompt, mapa);
+  if (mapa.size) {
+    sys += INSTRUCAO_MARCADORES;
+    console.info(`[LGPD] ${mapa.size} dado(s) pessoal(is) pseudonimizado(s) antes do envio.`);
+  }
+  return { systemPrompt: sys, contents: novosContents, mapa };
+}
+
+/* Abre o aviso de privacidade e espera o "Li e concordo". Chamadas
+   simultâneas (ex.: várias etapas em paralelo) compartilham a mesma espera. */
+let lgpdEsperaCiencia = null;
+function garantirCienciaLGPD() {
+  if (lgpdCienciaAtual()) return Promise.resolve(true);
+  if (!lgpdEsperaCiencia) {
+    lgpdEsperaCiencia = new Promise((resolve) => abrirAvisoPrivacidade(resolve))
+      .finally(() => { lgpdEsperaCiencia = null; });
+  }
+  return lgpdEsperaCiencia;
+}
 
 /* ----------------------------------------------------------------------------
    2) ENGENHARIA DE PROMPT  —  RAG focado + geração seção por seção
@@ -3833,7 +4003,7 @@ function createPipelineController(onStage) {
 /* ----------------------------------------------------------------------------
    5) CHAMADA À API DO GEMINI  —  1 chamada por seção, com AUTO-FALLBACK
    ----------------------------------------------------------------------------
-   POST {GEMINI_BASE}/{modelo}:generateContent?key={CHAVE}
+   POST {GEMINI_BASE}/{modelo}:generateContent   (cabeçalho x-goog-api-key: {CHAVE})
    Corpo : {
      systemInstruction: { parts: [{ text: <persona da etapa> }] },
      contents:          [{ role: "user", parts: [{ text: <entrada da etapa> }] }],
@@ -3857,9 +4027,10 @@ async function callGemini(systemPrompt, userContent, rotuloEtapa, opts) {
   // Timeout por chamada — pode ser esticado via opts (ex.: diagramação DOCX,
   // que escreve um HTML longo e não pode ter a conexão cortada no meio).
   const timeoutMs = cfg.timeoutMs != null ? cfg.timeoutMs : GEMINI_CONFIG.timeoutMs;
+  const envio = await prepararEnvioLGPD(systemPrompt, [{ role: "user", parts: [{ text: userContent }] }]);
   const payload = {
-    systemInstruction: { parts: [{ text: systemPrompt }] },
-    contents: [{ role: "user", parts: [{ text: userContent }] }],
+    systemInstruction: { parts: [{ text: envio.systemPrompt }] },
+    contents: envio.contents,
     generationConfig: {
       temperature:      cfg.temperature != null ? cfg.temperature : GEMINI_CONFIG.temperature,   // 0.0 — determinismo total
       topP:             GEMINI_CONFIG.topP,
@@ -3892,8 +4063,8 @@ async function callGemini(systemPrompt, userContent, rotuloEtapa, opts) {
     }
     try {
       const res = await fetch(
-        `${GEMINI_BASE}/${modelo}:generateContent?key=${encodeURIComponent(key)}`,
-        { method: "POST", headers: { "Content-Type": "application/json" },
+        `${GEMINI_BASE}/${modelo}:generateContent`,
+        { method: "POST", headers: geminiHeaders(key),
           body: JSON.stringify(payload), signal: ctrl.signal }
       );
 
@@ -3919,7 +4090,7 @@ async function callGemini(systemPrompt, userContent, rotuloEtapa, opts) {
         ACTIVE_MODEL = modelo;
       }
       console.log(`%c[GEMINI] ${rotuloEtapa} · ${modelo} · ${texto.length} caracteres`, "color:#0a0");
-      return cleanMarkdownFences(texto);
+      return restaurarDadosPessoais(cleanMarkdownFences(texto), envio.mapa);
 
     } catch (err) {
       if (err && err.fatal) throw err;              // chave inválida / cota / filtro → não adianta trocar de modelo
@@ -4000,9 +4171,10 @@ async function callGeminiChat(systemPrompt, contents, rotuloEtapa, opts) {
 
   const cfg = opts || {};
   const timeoutMs = cfg.timeoutMs != null ? cfg.timeoutMs : GEMINI_CONFIG.timeoutMs;
+  const envio = await prepararEnvioLGPD(systemPrompt, contents);
   const payload = {
-    systemInstruction: { parts: [{ text: systemPrompt }] },
-    contents,
+    systemInstruction: { parts: [{ text: envio.systemPrompt }] },
+    contents: envio.contents,
     generationConfig: {
       temperature:      cfg.temperature != null ? cfg.temperature : 0.4,   // chat: um pouco de naturalidade, não determinismo total
       topP:              GEMINI_CONFIG.topP,
@@ -4024,8 +4196,8 @@ async function callGeminiChat(systemPrompt, contents, rotuloEtapa, opts) {
     }
     try {
       const res = await fetch(
-        `${GEMINI_BASE}/${modelo}:generateContent?key=${encodeURIComponent(key)}`,
-        { method: "POST", headers: { "Content-Type": "application/json" },
+        `${GEMINI_BASE}/${modelo}:generateContent`,
+        { method: "POST", headers: geminiHeaders(key),
           body: JSON.stringify(payload), signal: ctrl.signal }
       );
 
@@ -4045,7 +4217,7 @@ async function callGeminiChat(systemPrompt, contents, rotuloEtapa, opts) {
       }
 
       if (ACTIVE_MODEL !== modelo) ACTIVE_MODEL = modelo;
-      return cleanMarkdownFences(texto);
+      return restaurarDadosPessoais(cleanMarkdownFences(texto), envio.mapa);
 
     } catch (err) {
       if (err && err.fatal) throw err;
@@ -4415,6 +4587,7 @@ const E = {
   // Recursos globais (paleta, atalhos, backup, localizar, sumário)
   cmdPalette: el("cmdPalette"), cmdInput: el("cmdInput"), cmdList: el("cmdList"),
   shortcutsModal: el("shortcutsModal"), shortcutsList: el("shortcutsList"),
+  btnHubPrivacy: el("btnHubPrivacy"), privacyModal: el("privacyModal"), privacyBody: el("privacyBody"), privacyMascarar: el("privacyMascarar"), privacyStatus: el("privacyStatus"), btnPrivacyAceitar: el("btnPrivacyAceitar"), btnApagarTudo: el("btnApagarTudo"),
   btnHubBackup: el("btnHubBackup"), backupModal: el("backupModal"), backupResumo: el("backupResumo"), backupUltimo: el("backupUltimo"),
   backupFileInput: el("backupFileInput"), btnBackupExport: el("btnBackupExport"), btnBackupImport: el("btnBackupImport"),
   docFindBar: el("docFindBar"), docFindInput: el("docFindInput"), docReplaceInput: el("docReplaceInput"), docFindCount: el("docFindCount"),
@@ -4795,6 +4968,12 @@ const I18N = {
     "backup.keyNote": "A chave de API do Gemini nunca entra no backup, por segurança.",
     "backup.export": "Exportar backup (.json)",
     "backup.import": "Restaurar de um arquivo",
+    "backup.lgpdNote": "O arquivo de backup contém tudo o que você salvou (inclusive dados pessoais que estejam nos documentos). Guarde-o em local seguro e não o compartilhe.",
+    "lgpd.title": "Privacidade e proteção de dados (LGPD)",
+    "lgpd.mascarar": "Mascarar dados pessoais (e-mail, CPF, RG, telefone, CEP e nomes após rótulos como \"Responsável:\") antes de enviar à IA — recomendado",
+    "lgpd.aceitar": "Li e concordo",
+    "lgpd.fechar": "Fechar",
+    "lgpd.apagarTudo": "Apagar todos os meus dados deste navegador",
     "ditado.btn": "Ditar por voz",
     "ditado.short": "Ditar",
     "doctool.outline": "Sumário do documento",
@@ -5051,6 +5230,12 @@ const I18N = {
     "backup.keyNote": "The Gemini API key is never included in the backup, for security.",
     "backup.export": "Export backup (.json)",
     "backup.import": "Restore from a file",
+    "backup.lgpdNote": "The backup file contains everything you saved (including any personal data in the documents). Keep it somewhere safe and do not share it.",
+    "lgpd.title": "Privacy and data protection (LGPD)",
+    "lgpd.mascarar": "Mask personal data (e-mail, CPF, RG, phone, postcode and names after labels such as \"Responsible:\") before sending to the AI — recommended",
+    "lgpd.aceitar": "I have read and agree",
+    "lgpd.fechar": "Close",
+    "lgpd.apagarTudo": "Delete all my data from this browser",
     "ditado.btn": "Voice dictation",
     "ditado.short": "Dictate",
     "doctool.outline": "Document outline",
@@ -5313,6 +5498,12 @@ const I18N = {
     "backup.keyNote": "セキュリティのため、Gemini API キーはバックアップに含まれません。",
     "backup.export": "バックアップを書き出す(.json)",
     "backup.import": "ファイルから復元",
+    "backup.lgpdNote": "バックアップファイルには保存したすべてのデータ(文書内の個人情報を含む)が入っています。安全な場所に保管し、共有しないでください。",
+    "lgpd.title": "プライバシーとデータ保護 (LGPD)",
+    "lgpd.mascarar": "AI に送信する前に個人情報(メール、CPF、RG、電話番号、郵便番号、「担当者:」などのラベル後の氏名)をマスクする — 推奨",
+    "lgpd.aceitar": "読んで同意します",
+    "lgpd.fechar": "閉じる",
+    "lgpd.apagarTudo": "このブラウザから自分のデータをすべて削除",
     "ditado.btn": "音声入力",
     "ditado.short": "音声入力",
     "doctool.outline": "文書の目次",
@@ -7348,6 +7539,36 @@ function fileToBase64(file) {
   });
 }
 
+/* LGPD — foto de celular carrega EXIF (GPS de onde foi tirada, aparelho,
+   autor, data). Redesenhar num <canvas> e re-exportar descarta TODOS os
+   metadados; só os pixels vão para o Gemini. GIF segue como está (pode ser
+   animado e o formato não carrega EXIF). Se a imagem não decodificar, o
+   envio é recusado em vez de mandar o arquivo original com metadados. */
+function imagemSemMetadados(file) {
+  const tipo = (file.type || "").toLowerCase();
+  if (tipo === "image/gif" || /\.gif$/i.test(file.name || "")) {
+    return fileToBase64(file).then((base64) => ({ base64, mimeType: "image/gif" }));
+  }
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = im.naturalWidth;
+        canvas.height = im.naturalHeight;
+        canvas.getContext("2d").drawImage(im, 0, 0);
+        const mimeType = tipo === "image/png" || tipo === "image/webp" ? "image/png" : "image/jpeg";
+        const dataUrl = canvas.toDataURL(mimeType, 0.92);
+        resolve({ base64: dataUrl.split(",")[1] || "", mimeType });
+      } catch (e) { reject(new Error(`Falha ao preparar "${file.name}" para envio.`)); }
+      finally { URL.revokeObjectURL(url); }
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`Não foi possível ler a imagem "${file.name}".`)); };
+    im.src = url;
+  });
+}
+
 /* ----------------------------------------------------------------------------
    PRÉ-DIGESTÃO PELO GEMINI — usada pelas DUAS bases RAG persistentes deste
    módulo ("Referências para criação" e "Arquivos e documentos"): nenhuma
@@ -7367,10 +7588,10 @@ function buildRefInterpretationPrompt() {
 }
 async function interpretarArquivoRAG(file, signal) {
   if (isImageFile(file)) {
-    const base64 = await fileToBase64(file);
+    const { base64, mimeType } = await imagemSemMetadados(file);
     const contents = [{ role: "user", parts: [
       { text: "Interprete tecnicamente esta imagem (diagrama, foto de peça, desenho técnico ou página digitalizada) e estruture o que encontrar, seguindo as instruções do sistema." },
-      { inlineData: { mimeType: file.type || "image/png", data: base64 } },
+      { inlineData: { mimeType, data: base64 } },
     ]}];
     const conteudo = await callGeminiChat(buildRefInterpretationPrompt(), contents, "Interpretação · " + file.name, { temperature: 0, signal });
     return { tipo: "imagem", nome: file.name, conteudo };
@@ -12089,6 +12310,98 @@ async function importarBackup(file) {
 }
 
 /* ---------------------------------------------------------------------------
+   1.b) PRIVACIDADE (LGPD) — aviso, ciência e eliminação dos dados
+   O núcleo (ciência, pseudonimização antes do envio) fica junto do
+   callGemini(); aqui só a interface. Direito de eliminação (art. 18 VI):
+   apagarTodosOsDados() remove TODAS as chaves do Portal deste navegador,
+   inclusive a chave de API — mas nada de outros sites na mesma origem.
+   --------------------------------------------------------------------------- */
+let lgpdResolver = null;
+function renderAvisoPrivacidade() {
+  if (!E.privacyBody) return;
+  const contato = LGPD_CONTATO_ENCARREGADO
+    ? esc(LGPD_CONTATO_ENCARREGADO)
+    : tr3("o Encarregado de Dados (DPO) da empresa", "the company's Data Protection Officer (DPO)", "会社のデータ保護責任者 (DPO)");
+  const blocos = tr3(
+    [
+      ["O que fica neste navegador", "Procedimentos, projetos, bases de conhecimento, glossário, histórico de traduções, preferências e a chave de API ficam salvos <b>apenas no armazenamento local deste navegador</b>. O Work Hub não tem servidor próprio e não envia esses dados a nenhum outro lugar além do descrito abaixo."],
+      ["O que é enviado à IA (Google Gemini)", "Ao usar um recurso de IA, o texto do pedido e os documentos usados (normas, relatórios, manuais, especificações, textos a traduzir e imagens anexadas) são enviados à API Google Gemini e processados em servidores do Google, <b>possivelmente fora do Brasil</b> (transferência internacional — LGPD art. 33). A finalidade é exclusivamente gerar, revisar, interpretar ou traduzir o conteúdo técnico solicitado."],
+      ["Chave gratuita × chave paga", "Pelos termos do Google, na <b>camada gratuita</b> da API Gemini o conteúdo enviado pode ser usado para melhorar os produtos do Google e lido por revisores humanos. Para documentos da empresa, use uma chave de um projeto <b>com faturamento ativado</b> (camada paga), aprovada pela TI e pelo Encarregado de Dados."],
+      ["O que não enviar", "Não inclua dados pessoais desnecessários e <b>nunca</b> dados sensíveis (saúde, biometria, origem racial, religião, opinião política etc. — art. 11) nem dados de clientes. O mascaramento automático abaixo troca e-mail, CPF, RG, telefone, CEP e nomes após rótulos (\"Responsável:\", \"Elaborado por:\"…) por marcadores <code>{{DPn}}</code> antes do envio e devolve os valores reais só aqui, no seu navegador. Ele <b>não</b> reconhece nomes soltos no texto nem o conteúdo de imagens (rostos, crachás, assinaturas) — revise antes de enviar."],
+      ["Imagens", "Metadados das fotos (localização GPS, aparelho, autor, data) são removidos automaticamente antes do envio."],
+      ["Ditado por voz", "O áudio é enviado pelo navegador ao serviço de reconhecimento de fala do Google (Chrome) ou da Microsoft (Edge). Um aviso próprio aparece na primeira vez."],
+      ["Outros serviços externos", "Ao abrir o Work Hub, o navegador baixa fontes (Google Fonts) e bibliotecas (jsDelivr, Tailwind CDN). Esses serviços recebem o endereço IP e dados técnicos do navegador, como em qualquer site."],
+      ["Seus direitos (art. 18)", `Você pode exportar seus dados (Backup) e apagá-los a qualquer momento (botão "Apagar todos os meus dados", na janela de Backup). Dúvidas ou solicitações: ${contato}.`],
+    ],
+    [
+      ["What stays in this browser", "Procedures, projects, knowledge bases, glossary, translation history, preferences and the API key are stored <b>only in this browser's local storage</b>. Work Hub has no server of its own and sends this data nowhere other than as described below."],
+      ["What is sent to the AI (Google Gemini)", "When you use an AI feature, the request text and the documents used (standards, reports, manuals, specifications, texts to translate and attached images) are sent to the Google Gemini API and processed on Google servers, <b>possibly outside Brazil</b> (international transfer — LGPD art. 33). The sole purpose is to generate, review, interpret or translate the requested technical content."],
+      ["Free key × paid key", "Under Google's terms, on the Gemini API <b>free tier</b> submitted content may be used to improve Google products and read by human reviewers. For company documents, use a key from a project <b>with billing enabled</b> (paid tier), approved by IT and the Data Protection Officer."],
+      ["What not to send", "Do not include unnecessary personal data and <b>never</b> sensitive data (health, biometrics, racial origin, religion, political opinion etc. — art. 11) or customer data. The automatic masking below replaces e-mail, CPF, RG, phone, postcode and names after labels (\"Responsible:\", \"Prepared by:\"…) with <code>{{DPn}}</code> markers before sending, and restores the real values only here, in your browser. It does <b>not</b> detect loose names in the text or image content (faces, badges, signatures) — review before sending."],
+      ["Images", "Photo metadata (GPS location, device, author, date) is removed automatically before sending."],
+      ["Voice dictation", "Audio is sent by the browser to Google (Chrome) or Microsoft (Edge) speech recognition. A separate notice appears the first time."],
+      ["Other external services", "When Work Hub opens, the browser downloads fonts (Google Fonts) and libraries (jsDelivr, Tailwind CDN). These services receive the IP address and technical browser data, as with any website."],
+      ["Your rights (art. 18)", `You can export your data (Backup) and delete it at any time ("Delete all my data" button in the Backup window). Questions or requests: ${contato}.`],
+    ],
+    [
+      ["このブラウザに保存されるもの", "手順書、プロジェクト、ナレッジベース、用語集、翻訳履歴、設定、API キーは<b>このブラウザのローカルストレージにのみ</b>保存されます。Work Hub は独自のサーバーを持たず、以下に記載する場合を除き、これらのデータをどこにも送信しません。"],
+      ["AI (Google Gemini) に送信されるもの", "AI 機能を使うと、依頼文と使用する文書(規格、報告書、マニュアル、仕様書、翻訳対象テキスト、添付画像)が Google Gemini API に送信され、<b>ブラジル国外の可能性がある</b> Google のサーバーで処理されます(国際移転 — LGPD 第33条)。目的は依頼された技術コンテンツの作成・レビュー・解釈・翻訳のみです。"],
+      ["無料キー × 有料キー", "Google の規約では、Gemini API の<b>無料枠</b>では送信内容が Google の製品改善に使われ、人間のレビュー担当者が読む場合があります。社内文書には、IT 部門とデータ保護責任者が承認した<b>課金が有効な</b>プロジェクト(有料枠)のキーを使用してください。"],
+      ["送信してはいけないもの", "不要な個人情報は含めず、機微情報(健康、生体情報、人種、宗教、政治的意見など — 第11条)や顧客データは<b>決して</b>送信しないでください。下記の自動マスクは、メール、CPF、RG、電話番号、郵便番号、ラベル後の氏名を送信前に <code>{{DPn}}</code> に置き換え、実際の値はこのブラウザ内でのみ復元します。文中のラベルなしの氏名や画像の内容(顔、社員証、署名)は<b>検出できません</b> — 送信前に確認してください。"],
+      ["画像", "写真のメタデータ(GPS 位置、端末、作成者、日付)は送信前に自動で削除されます。"],
+      ["音声入力", "音声はブラウザから Google (Chrome) または Microsoft (Edge) の音声認識に送信されます。初回に個別の通知が表示されます。"],
+      ["その他の外部サービス", "Work Hub を開くと、ブラウザがフォント (Google Fonts) とライブラリ (jsDelivr, Tailwind CDN) を読み込みます。これらのサービスは一般的なサイトと同様に IP アドレスとブラウザの技術情報を受け取ります。"],
+      ["あなたの権利 (第18条)", `データはいつでもエクスポート(バックアップ)・削除(バックアップ画面の「自分のデータをすべて削除」)できます。お問い合わせ: ${contato}。`],
+    ]
+  );
+  E.privacyBody.innerHTML = blocos.map(([t, txt]) =>
+    `<section><h3 class="mb-0.5 text-[13.5px] font-semibold text-rinnai-g1">${esc(t)}</h3><p>${txt}</p></section>`).join("");
+  if (E.privacyMascarar) E.privacyMascarar.checked = lgpdMascararAtivo();
+  if (E.privacyStatus) {
+    let em = null;
+    try { const r = JSON.parse(localStorage.getItem(LS_LGPD_CIENCIA) || "null"); if (r && r.versao === LGPD_VERSAO_AVISO) em = r.em; } catch (e) {}
+    E.privacyStatus.textContent = em
+      ? tr3("Ciência registrada em ", "Acknowledged on ", "同意日時: ") + fmtDate(Date.parse(em))
+      : tr3("Para usar os recursos de IA, leia o aviso e clique em \"Li e concordo\".", "To use the AI features, read the notice and click \"I have read and agree\".", "AI 機能を使うには、通知を読んで「読んで同意します」を押してください。");
+  }
+}
+function abrirAvisoPrivacidade(onDecisao) {
+  if (lgpdResolver && lgpdResolver !== onDecisao) lgpdResolver(lgpdCienciaAtual());
+  lgpdResolver = onDecisao || null;
+  renderAvisoPrivacidade();
+  mostrarOverlay(E.privacyModal);
+}
+function fecharAvisoPrivacidade() {
+  esconderOverlay(E.privacyModal);
+  const r = lgpdResolver; lgpdResolver = null;
+  if (r) r(lgpdCienciaAtual());
+}
+function aceitarAvisoPrivacidade() {
+  lgpdSetMascarar(!E.privacyMascarar || E.privacyMascarar.checked);
+  lgpdRegistrarCiencia();
+  toast(tr3("Aviso de privacidade aceito.", "Privacy notice accepted.", "プライバシー通知に同意しました。"));
+  fecharAvisoPrivacidade();
+}
+function chaveDoPortal(k) {
+  return chaveEntraNoBackup(k) || k === LS_KEY || k === LS_KEY_LEGACY;
+}
+function apagarTodosOsDados() {
+  const ok = confirm(tr3(
+    "Apagar TODOS os dados do Work Hub deste navegador?\n\nProcedimentos, projetos, bases de conhecimento, glossário, histórico, preferências e a chave de API serão removidos. Isto não pode ser desfeito — exporte um backup antes, se precisar.",
+    "Delete ALL Work Hub data from this browser?\n\nProcedures, projects, knowledge bases, glossary, history, preferences and the API key will be removed. This cannot be undone — export a backup first if you need one.",
+    "このブラウザから Work Hub のデータをすべて削除しますか？\n\n手順書、プロジェクト、ナレッジベース、用語集、履歴、設定、API キーが削除されます。元に戻せません — 必要なら先にバックアップしてください。"
+  ));
+  if (!ok) return;
+  try {
+    const chaves = [];
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (chaveDoPortal(k)) chaves.push(k); }
+    chaves.forEach((k) => localStorage.removeItem(k));
+  } catch (e) {}
+  toast(tr3("Dados apagados. Recarregando…", "Data deleted. Reloading…", "削除しました。再読み込み中…"));
+  setTimeout(() => location.reload(), 900);
+}
+
+/* ---------------------------------------------------------------------------
    2) PALETA DE COMANDOS (Ctrl+K) + BUSCA GLOBAL
    Estilo Linear/VS Code/Notion: uma caixa só pra pular pra qualquer tela,
    abrir qualquer procedimento/projeto/tradução salvo, ou rodar uma ação. Os
@@ -12656,6 +12969,19 @@ function alternarDitado(btn) {
   if (ditadoAtual && ditadoAtual.btn === btn) { pararDitado(); return; }
   pararDitado();
   if (!ReconhecimentoFala) { toast(tr3("Ditado por voz não é suportado neste navegador (use o Chrome ou o Edge).", "Voice dictation is not supported in this browser (use Chrome or Edge).", "このブラウザは音声入力に対応していません。")); return; }
+  // LGPD — a voz é dado pessoal e o Chrome/Edge a processam nos servidores do
+  // Google/Microsoft (fora do Brasil). Avisa uma vez antes de ligar o microfone.
+  let ditadoCiente = false;
+  try { ditadoCiente = localStorage.getItem(LS_LGPD_DITADO) === "1"; } catch (e) {}
+  if (!ditadoCiente) {
+    const ok = confirm(tr3(
+      "Ditado por voz — aviso de privacidade (LGPD)\n\nO áudio do microfone é enviado pelo navegador aos servidores de reconhecimento de fala do Google (Chrome) ou da Microsoft (Edge), possivelmente fora do Brasil, para ser convertido em texto. O Work Hub não grava o áudio.\n\nNão dite dados pessoais de terceiros. Deseja ativar o ditado?",
+      "Voice dictation — privacy notice (LGPD)\n\nMicrophone audio is sent by the browser to Google (Chrome) or Microsoft (Edge) speech servers, possibly outside Brazil, to be converted to text. Work Hub does not record the audio.\n\nDo not dictate third parties' personal data. Enable dictation?",
+      "音声入力 — プライバシー通知 (LGPD)\n\nマイクの音声は、文字起こしのためにブラウザから Google (Chrome) または Microsoft (Edge) の音声認識サーバー(ブラジル国外の可能性あり)へ送信されます。Work Hub は音声を録音しません。\n\n第三者の個人情報を口述しないでください。音声入力を有効にしますか？"
+    ));
+    if (!ok) return;
+    try { localStorage.setItem(LS_LGPD_DITADO, "1"); } catch (e) {}
+  }
   const rec = new ReconhecimentoFala();
   rec.lang = idiomaDoDitado(campoId);
   rec.continuous = true;
@@ -12718,6 +13044,9 @@ document.addEventListener("click", (e) => {
   if (mic) { alternarDitado(mic); return; }
   if (e.target.closest("[data-close-shortcuts]")) { fecharAtalhos(); return; }
   if (e.target.closest("[data-close-backup]")) { fecharBackupModal(); return; }
+  if (e.target.closest("[data-close-privacy]")) { fecharAvisoPrivacidade(); return; }
+  if (e.target.closest("[data-open-privacy]")) { abrirAvisoPrivacidade(); return; }
+  if (e.target === E.privacyModal) { fecharAvisoPrivacidade(); return; }
   if (e.target === E.cmdPalette) { fecharCmdPalette(); return; }
   if (e.target === E.shortcutsModal) { fecharAtalhos(); return; }
   if (e.target === E.backupModal) { fecharBackupModal(); return; }
@@ -12741,6 +13070,10 @@ if (E.cmdList) {
   });
 }
 if (E.btnHubBackup) E.btnHubBackup.addEventListener("click", () => abrirBackupModal());
+if (E.btnHubPrivacy) E.btnHubPrivacy.addEventListener("click", () => abrirAvisoPrivacidade());
+if (E.btnPrivacyAceitar) E.btnPrivacyAceitar.addEventListener("click", () => aceitarAvisoPrivacidade());
+if (E.privacyMascarar) E.privacyMascarar.addEventListener("change", () => { if (lgpdCienciaAtual()) lgpdSetMascarar(E.privacyMascarar.checked); });
+if (E.btnApagarTudo) E.btnApagarTudo.addEventListener("click", () => apagarTodosOsDados());
 if (E.btnBackupExport) E.btnBackupExport.addEventListener("click", () => exportarBackup());
 if (E.btnBackupImport && E.backupFileInput) E.btnBackupImport.addEventListener("click", () => E.backupFileInput.click());
 if (E.backupFileInput) E.backupFileInput.addEventListener("change", (e) => { importarBackup(e.target.files && e.target.files[0]); e.target.value = ""; });
@@ -12778,6 +13111,7 @@ document.addEventListener("keydown", (e) => {
     return;
   }
   if (e.key === "Escape") {
+    if (overlayAberto(E.privacyModal)) { fecharAvisoPrivacidade(); return; }
     if (overlayAberto(E.cmdPalette)) { fecharCmdPalette(); return; }
     if (overlayAberto(E.shortcutsModal)) { fecharAtalhos(); return; }
     if (overlayAberto(E.backupModal)) { fecharBackupModal(); return; }
