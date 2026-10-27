@@ -677,6 +677,12 @@
 
   /* Ditado por voz ativo — pulsa em vermelho enquanto o microfone escuta. */
   .mic-btn.is-listening { color: #cf000e !important; border-color: #cf000e !important; animation: micPulse 1.2s ease-in-out infinite; }
+  /* Campo de uma linha com microfone embutido à direita. */
+  .ditado-campo { position: relative; display: block; }
+  .ditado-campo > input { padding-right: 2.3rem !important; }
+  .mic-icone { position: absolute; right: 5px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid transparent; border-radius: 6px; color: rgb(var(--r-g3)); background: transparent; transition: color .15s; }
+  .mic-icone:hover { color: #cf000e; }
+  .sem-ditado [data-ditado] { display: none !important; }
   @keyframes micPulse { 0%, 100% { box-shadow: 0 0 0 0 rgb(207 0 14 / .45); } 50% { box-shadow: 0 0 0 6px rgb(207 0 14 / 0); } }
 
   /* Leitura em voz alta ativa (botão vira "Parar"). */
@@ -1933,6 +1939,11 @@
                 data-i18n-ph="acc.ctxProdPh"
                 placeholder="Ex.: Aquecedor híbrido gás + bomba de calor, 200 L, trocador de titânio e recirculação inteligente ainda em protótipo."></textarea>
               <div class="mt-1.5 flex items-center justify-end gap-1.5">
+                <button type="button" data-ditado="prodDescProduto" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz"
+            class="mic-btn mr-auto inline-flex items-center gap-1 rounded-rinnai border border-rinnai-line bg-rinnai-card px-2 py-1 text-[10.5px] font-semibold text-rinnai-g2 transition hover:border-rinnai-red hover:text-rinnai-red">
+            <svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+            <span class="pointer-events-none" data-i18n="ditado.short">Ditar</span>
+          </button>
                 <button type="button" data-undo="prodDescProduto" hidden
                   class="inline-flex items-center gap-1 rounded-rinnai border border-rinnai-line bg-rinnai-card px-2 py-1 text-[10.5px] font-semibold text-rinnai-g2 transition hover:border-rinnai-red hover:text-rinnai-red" data-i18n="btn.undo">Desfazer</button>
                 <button type="button" data-improve="prodDescProduto"
@@ -1946,6 +1957,11 @@
                 data-i18n-ph="acc.ctxEnsaioPh"
                 placeholder="Ex.: Verificar a estabilidade da recirculação sob 15.000 ciclos e confirmar que a temperatura de saída não excede 60 °C."></textarea>
               <div class="mt-1.5 flex items-center justify-end gap-1.5">
+                <button type="button" data-ditado="prodDescEnsaio" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz"
+            class="mic-btn mr-auto inline-flex items-center gap-1 rounded-rinnai border border-rinnai-line bg-rinnai-card px-2 py-1 text-[10.5px] font-semibold text-rinnai-g2 transition hover:border-rinnai-red hover:text-rinnai-red">
+            <svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+            <span class="pointer-events-none" data-i18n="ditado.short">Ditar</span>
+          </button>
                 <button type="button" data-undo="prodDescEnsaio" hidden
                   class="inline-flex items-center gap-1 rounded-rinnai border border-rinnai-line bg-rinnai-card px-2 py-1 text-[10.5px] font-semibold text-rinnai-g2 transition hover:border-rinnai-red hover:text-rinnai-red" data-i18n="btn.undo">Desfazer</button>
                 <button type="button" data-improve="prodDescEnsaio"
@@ -2131,13 +2147,13 @@
           <p id="pdModeloInfo" class="mt-2 text-[11.5px] leading-relaxed text-rinnai-g2"></p>
           <input type="file" id="pdModeloInput" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="hidden" />
           <form id="pdDadosForm" class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <label class="text-[11px] font-semibold text-rinnai-g2">Número<input name="codigo" class="field mt-0.5 !py-1.5 !text-[12.5px]" /></label>
-            <label class="text-[11px] font-semibold text-rinnai-g2 sm:col-span-2">Descrição (título)<input name="titulo" class="field mt-0.5 !py-1.5 !text-[12.5px]" /></label>
-            <label class="text-[11px] font-semibold text-rinnai-g2">Revisão<input name="revisao" class="field mt-0.5 !py-1.5 !text-[12.5px]" placeholder="ex.: 00" /></label>
-            <label class="text-[11px] font-semibold text-rinnai-g2">Elaborado<input name="elaborado" class="field mt-0.5 !py-1.5 !text-[12.5px]" /></label>
-            <label class="text-[11px] font-semibold text-rinnai-g2">Verificado<input name="verificado" class="field mt-0.5 !py-1.5 !text-[12.5px]" /></label>
-            <label class="text-[11px] font-semibold text-rinnai-g2">Aprovado<input name="aprovado" class="field mt-0.5 !py-1.5 !text-[12.5px]" /></label>
-            <label class="text-[11px] font-semibold text-rinnai-g2">Data<input name="data" class="field mt-0.5 !py-1.5 !text-[12.5px]" placeholder="dd/mm/aaaa" /></label>
+            <label class="text-[11px] font-semibold text-rinnai-g2">Número<span class="ditado-campo mt-0.5" data-ditado-grupo><input name="codigo" class="field !py-1.5 !text-[12.5px]" /><button type="button" data-ditado="" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz" class="mic-btn mic-icone"><svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button></span></label>
+            <label class="text-[11px] font-semibold text-rinnai-g2 sm:col-span-2">Descrição (título)<span class="ditado-campo mt-0.5" data-ditado-grupo><input name="titulo" class="field !py-1.5 !text-[12.5px]" /><button type="button" data-ditado="" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz" class="mic-btn mic-icone"><svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button></span></label>
+            <label class="text-[11px] font-semibold text-rinnai-g2">Revisão<span class="ditado-campo mt-0.5" data-ditado-grupo><input name="revisao" class="field !py-1.5 !text-[12.5px]" placeholder="ex.: 00" /><button type="button" data-ditado="" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz" class="mic-btn mic-icone"><svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button></span></label>
+            <label class="text-[11px] font-semibold text-rinnai-g2">Elaborado<span class="ditado-campo mt-0.5" data-ditado-grupo><input name="elaborado" class="field !py-1.5 !text-[12.5px]" /><button type="button" data-ditado="" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz" class="mic-btn mic-icone"><svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button></span></label>
+            <label class="text-[11px] font-semibold text-rinnai-g2">Verificado<span class="ditado-campo mt-0.5" data-ditado-grupo><input name="verificado" class="field !py-1.5 !text-[12.5px]" /><button type="button" data-ditado="" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz" class="mic-btn mic-icone"><svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button></span></label>
+            <label class="text-[11px] font-semibold text-rinnai-g2">Aprovado<span class="ditado-campo mt-0.5" data-ditado-grupo><input name="aprovado" class="field !py-1.5 !text-[12.5px]" /><button type="button" data-ditado="" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz" class="mic-btn mic-icone"><svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button></span></label>
+            <label class="text-[11px] font-semibold text-rinnai-g2">Data<span class="ditado-campo mt-0.5" data-ditado-grupo><input name="data" class="field !py-1.5 !text-[12.5px]" placeholder="dd/mm/aaaa" /><button type="button" data-ditado="" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz" class="mic-btn mic-icone"><svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button></span></label>
             <div class="flex items-end justify-end gap-2">
               <button type="button" id="btnPdEditarTexto" class="btn-ghost !px-3 !py-2 !text-[12px]">Editar texto</button>
               <button type="submit" class="btn-primary !px-3 !py-2 !text-[12px]">Aplicar</button>
@@ -2148,7 +2164,12 @@
         <div id="pdEditor" class="card mb-4 hidden p-4">
           <p class="mb-2 text-[12px] text-rinnai-g2">Texto do procedimento (Markdown). O que for salvo aqui vale para a tela, o PDF e o DOCX.</p>
           <textarea id="pdEditorTexto" class="field min-h-[420px] font-mono !text-[12px]" spellcheck="true"></textarea>
-          <div class="mt-3 flex justify-end gap-2">
+          <div class="mt-3 flex items-center justify-end gap-2">
+            <button type="button" data-ditado="pdEditorTexto" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz"
+            class="mic-btn mr-auto inline-flex items-center gap-1 rounded-rinnai border border-rinnai-line bg-rinnai-card px-2 py-1 text-[10.5px] font-semibold text-rinnai-g2 transition hover:border-rinnai-red hover:text-rinnai-red">
+            <svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+            <span class="pointer-events-none" data-i18n="ditado.short">Ditar</span>
+          </button>
             <button type="button" id="btnPdEditorCancelar" class="btn-ghost !px-3 !py-2 !text-[12px]">Cancelar</button>
             <button type="button" id="btnPdEditorSalvar" class="btn-primary !px-3 !py-2 !text-[12px]">Salvar texto</button>
           </div>
@@ -2220,8 +2241,13 @@
             <div class="mt-2">
               <textarea id="kbPaste" rows="4" class="field w-full resize-y font-mono !text-[11px] !leading-relaxed"
                 data-i18n-ph="kb.pastePh" placeholder="Cole aqui o texto bruto de uma norma…"></textarea>
+              <div class="mt-1.5 flex"><button type="button" data-ditado="kbPaste" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz"
+            class="mic-btn inline-flex items-center gap-1 rounded-rinnai border border-rinnai-line bg-rinnai-card px-2 py-1 text-[10.5px] font-semibold text-rinnai-g2 transition hover:border-rinnai-red hover:text-rinnai-red">
+            <svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+            <span class="pointer-events-none" data-i18n="ditado.short">Ditar</span>
+          </button></div>
               <div class="mt-2 flex flex-wrap items-center gap-2">
-                <input id="kbPasteName" type="text" class="field flex-1 !py-1.5 !text-[12px]" data-i18n-ph="kb.pasteNamePh" placeholder="Nome (ex.: ABNT NBR 8130)" />
+                <span class="ditado-campo min-w-[140px] flex-1" data-ditado-grupo><input id="kbPasteName" type="text" class="field !py-1.5 !text-[12px]" data-i18n-ph="kb.pasteNamePh" placeholder="Nome (ex.: ABNT NBR 8130)" /><button type="button" data-ditado="" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz" class="mic-btn mic-icone"><svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button></span>
                 <button id="btnKbPaste" class="btn-ghost !px-3 !py-1.5 !text-[12px]" data-i18n="kb.pasteBtn">Interpretar texto</button>
               </div>
             </div>
@@ -2275,8 +2301,13 @@
             <div class="mt-2">
               <textarea id="repPaste" rows="4" class="field w-full resize-y font-mono !text-[11px] !leading-relaxed"
                 data-i18n-ph="rep.pastePh" placeholder="Cole aqui o texto bruto de um relatório de ensaio…"></textarea>
+              <div class="mt-1.5 flex"><button type="button" data-ditado="repPaste" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz"
+            class="mic-btn inline-flex items-center gap-1 rounded-rinnai border border-rinnai-line bg-rinnai-card px-2 py-1 text-[10.5px] font-semibold text-rinnai-g2 transition hover:border-rinnai-red hover:text-rinnai-red">
+            <svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+            <span class="pointer-events-none" data-i18n="ditado.short">Ditar</span>
+          </button></div>
               <div class="mt-2 flex flex-wrap items-center gap-2">
-                <input id="repPasteName" type="text" class="field flex-1 !py-1.5 !text-[12px]" data-i18n-ph="rep.pasteNamePh" placeholder="Nome (ex.: Relatório 2024-118)" />
+                <span class="ditado-campo min-w-[140px] flex-1" data-ditado-grupo><input id="repPasteName" type="text" class="field !py-1.5 !text-[12px]" data-i18n-ph="rep.pasteNamePh" placeholder="Nome (ex.: Relatório 2024-118)" /><button type="button" data-ditado="" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz" class="mic-btn mic-icone"><svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button></span>
                 <button id="btnRepPaste" class="btn-ghost !px-3 !py-1.5 !text-[12px]" data-i18n="rep.pasteBtn">Interpretar texto</button>
               </div>
             </div>
@@ -2328,8 +2359,13 @@
             <div class="mt-2">
               <textarea id="manPaste" rows="4" class="field w-full resize-y font-mono !text-[11px] !leading-relaxed"
                 data-i18n-ph="man.pastePh" placeholder="Cole aqui o texto bruto de um manual…"></textarea>
+              <div class="mt-1.5 flex"><button type="button" data-ditado="manPaste" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz"
+            class="mic-btn inline-flex items-center gap-1 rounded-rinnai border border-rinnai-line bg-rinnai-card px-2 py-1 text-[10.5px] font-semibold text-rinnai-g2 transition hover:border-rinnai-red hover:text-rinnai-red">
+            <svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+            <span class="pointer-events-none" data-i18n="ditado.short">Ditar</span>
+          </button></div>
               <div class="mt-2 flex flex-wrap items-center gap-2">
-                <input id="manPasteName" type="text" class="field flex-1 !py-1.5 !text-[12px]" data-i18n-ph="man.pasteNamePh" placeholder="Nome (ex.: Manual do Torquímetro X)" />
+                <span class="ditado-campo min-w-[140px] flex-1" data-ditado-grupo><input id="manPasteName" type="text" class="field !py-1.5 !text-[12px]" data-i18n-ph="man.pasteNamePh" placeholder="Nome (ex.: Manual do Torquímetro X)" /><button type="button" data-ditado="" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz" class="mic-btn mic-icone"><svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button></span>
                 <button id="btnManPaste" class="btn-ghost !px-3 !py-1.5 !text-[12px]" data-i18n="man.pasteBtn">Interpretar texto</button>
               </div>
             </div>
@@ -2427,6 +2463,11 @@
         <textarea id="stdVisualText" spellcheck="false"
           class="h-[42vh] w-full resize-y rounded-rinnai border border-rinnai-line bg-rinnai-g4 p-4 font-mono text-[11.5px] leading-relaxed text-rinnai-g1 focus:border-rinnai-red focus:outline-none"></textarea>
         <div class="mt-3 flex flex-wrap items-center gap-2">
+          <button type="button" data-ditado="stdVisualText" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz"
+            class="mic-btn inline-flex items-center gap-1 rounded-rinnai border border-rinnai-line bg-rinnai-card px-2 py-1 text-[10.5px] font-semibold text-rinnai-g2 transition hover:border-rinnai-red hover:text-rinnai-red">
+            <svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+            <span class="pointer-events-none" data-i18n="ditado.short">Ditar</span>
+          </button>
           <button id="btnStdUploadVisual" type="button" class="btn-ghost !px-3 !py-1.5 !text-[12px]">Enviar arquivo (.txt / .pdf / .xlsx / .docx)</button>
           <span class="text-[11px] leading-relaxed text-rinnai-g2">Substitui o conteúdo acima pelo texto extraído do arquivo.</span>
           <input id="stdFileVisual" type="file" class="hidden"
@@ -2444,6 +2485,11 @@
         <textarea id="stdContentText" spellcheck="false"
           class="h-[42vh] w-full resize-y rounded-rinnai border border-rinnai-line bg-rinnai-g4 p-4 font-mono text-[11.5px] leading-relaxed text-rinnai-g1 focus:border-rinnai-red focus:outline-none"></textarea>
         <div class="mt-3 flex flex-wrap items-center gap-2">
+          <button type="button" data-ditado="stdContentText" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz"
+            class="mic-btn inline-flex items-center gap-1 rounded-rinnai border border-rinnai-line bg-rinnai-card px-2 py-1 text-[10.5px] font-semibold text-rinnai-g2 transition hover:border-rinnai-red hover:text-rinnai-red">
+            <svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+            <span class="pointer-events-none" data-i18n="ditado.short">Ditar</span>
+          </button>
           <button id="btnStdUploadContent" type="button" class="btn-ghost !px-3 !py-1.5 !text-[12px]">Enviar arquivo (.txt / .pdf / .xlsx / .docx)</button>
           <span class="text-[11px] leading-relaxed text-rinnai-g2">Substitui o conteúdo acima pelo texto extraído do arquivo.</span>
           <input id="stdFileContent" type="file" class="hidden"
@@ -2559,7 +2605,7 @@
     </button>
     <div class="flex items-start gap-4 border-b border-rinnai-line px-6 py-5 pr-12">
       <div class="min-w-0 flex-1">
-        <input id="normName" class="w-full border border-transparent bg-transparent text-[16px] font-bold focus:border-rinnai-line focus:outline-none" />
+        <span class="ditado-campo" data-ditado-grupo><input id="normName" class="w-full border border-transparent bg-transparent text-[16px] font-bold focus:border-rinnai-line focus:outline-none" /><button type="button" data-ditado="" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz" class="mic-btn mic-icone"><svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button></span>
         <p id="normSub" class="mt-1 text-[12px] text-rinnai-g2">Trecho da norma usado como referência.</p>
       </div>
     </div>
@@ -2570,6 +2616,11 @@
         class="hidden mb-2 text-[11.5px] font-semibold text-rinnai-red hover:underline">Editar o texto extraído</button>
       <textarea id="normText" spellcheck="false"
         class="h-[48vh] w-full resize-y rounded-rinnai border border-rinnai-line bg-rinnai-g4 p-4 font-mono text-[11.5px] leading-relaxed text-rinnai-g1 focus:border-rinnai-red focus:outline-none"></textarea>
+      <div class="mt-1.5 flex"><button type="button" data-ditado="normText" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz"
+            class="mic-btn inline-flex items-center gap-1 rounded-rinnai border border-rinnai-line bg-rinnai-card px-2 py-1 text-[10.5px] font-semibold text-rinnai-g2 transition hover:border-rinnai-red hover:text-rinnai-red">
+            <svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+            <span class="pointer-events-none" data-i18n="ditado.short">Ditar</span>
+          </button></div>
     </div>
     <div class="flex items-center justify-between gap-2 border-t border-rinnai-line px-6 py-4">
       <button id="btnNormRemove" class="btn-ghost">Remover</button>
@@ -2687,6 +2738,11 @@
     <textarea id="readerEdit" hidden spellcheck="false"
       class="m-4 min-h-0 w-full flex-1 resize-y rounded-rinnai border border-rinnai-line bg-rinnai-g4 p-4 font-mono text-[12px] leading-relaxed text-rinnai-g1 focus:border-rinnai-red focus:outline-none"></textarea>
     <div id="readerFoot" class="hidden items-center justify-end gap-2 border-t border-rinnai-line px-6 py-3">
+      <button type="button" id="btnReaderDitar" data-ditado="readerEdit" title="Ditar por voz" data-i18n-title="ditado.btn" aria-label="Ditar por voz"
+            class="mic-btn hidden mr-auto inline-flex items-center gap-1 rounded-rinnai border border-rinnai-line bg-rinnai-card px-2 py-1 text-[10.5px] font-semibold text-rinnai-g2 transition hover:border-rinnai-red hover:text-rinnai-red">
+            <svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+            <span class="pointer-events-none" data-i18n="ditado.short">Ditar</span>
+          </button>
       <button id="btnReaderEdit" type="button" class="btn-ghost !px-3 !py-1.5 !text-[12px]">Editar Interpretação</button>
     </div>
   </div>
@@ -12140,12 +12196,12 @@ function rtRenderPainel() {
     if (x.tipo === "campo") {
       const excede = rtCampoExcede(aba, x, r.campos[x.ref]);
       blocos.push({ largo: (x.largura || 1) >= 6, html: `<label class="block"><span class="mb-1 block text-[12.5px] font-semibold text-rinnai-g1">${esc(x.rotulo)}${x.modo === "substituir" ? ` <span class="font-normal text-rinnai-g3">(${esc(tr3("assinatura", "signature", "署名"))})</span>` : ""}</span>
-        <input type="text" data-rt-campo="${esc(x.ref)}" value="${esc(r.campos[x.ref] || "")}" class="field !py-2 !text-[13px]" autocomplete="off" />
+        ${ditadoCampoHtml(`<input type="text" data-rt-campo="${esc(x.ref)}" value="${esc(r.campos[x.ref] || "")}" class="field !py-2 !text-[13px]" autocomplete="off" />`)}
         <span data-rt-aviso-campo="${esc(x.ref)}" class="mt-0.5 block text-[11px] text-amber-700 dark:text-amber-300 ${excede ? "" : "hidden"}">${esc(tr3("O texto pode não caber na célula do modelo — confira no arquivo gerado.", "The text may not fit the template cell.", "セルに収まらない可能性"))}</span></label>` });
     }
     if (x.tipo === "check") blocos.push({ largo: false, html: `<label class="flex items-center gap-2 text-[13px] text-rinnai-g1"><input type="checkbox" data-rt-check="${esc(x.ref)}" ${r.checks[x.ref] ? "checked" : ""} class="h-4 w-4 accent-[#cf000e]" /> ${esc(x.rotulo)}</label>` });
     if (x.tipo === "linha" && !e.textual) blocos.push({ largo: true, html: `<label class="block"><span class="mb-1 block text-[12px] text-rinnai-g2">${esc(tr3(`Linha livre do modelo (linha ${x.linha}) — opcional`, `Free template row (row ${x.linha}) — optional`, `自由行 ${x.linha}`))}</span>
-      <input type="text" data-rt-linha="${esc(x.ref)}" value="${esc(r.linhas[x.ref] || "")}" class="field !py-2 !text-[13px]" autocomplete="off" /></label>` });
+      ${ditadoCampoHtml(`<input type="text" data-rt-linha="${esc(x.ref)}" value="${esc(r.linhas[x.ref] || "")}" class="field !py-2 !text-[13px]" autocomplete="off" />`)}</label>` });
   });
   if (blocos.length) h.push(`<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">${blocos.map((b) => `<div class="${b.largo ? "sm:col-span-2" : ""}">${b.html}</div>`).join("")}</div>`);
   if (e.textual) h.push(rtHtmlSecaoTexto(r, aba, e));
@@ -12167,6 +12223,7 @@ function rtHtmlSecaoTexto(r, aba, e) {
       <span id="rtCapacidade" class="text-[11px] ${plano.excede ? "text-amber-700 dark:text-amber-300" : "text-rinnai-g3"}">${esc(rtTextoCapacidade(plano, cap))}</span></div>
     <textarea id="rtTexto" data-rt-texto="${esc(e.id)}" rows="9" class="field resize-y leading-relaxed" placeholder="${esc(tr3("Escreva livremente o que foi feito e observado — pode ser em tópicos, com erros ou frases incompletas. Você revisa a redação depois.", "Write freely what was done and observed — bullets, typos or incomplete sentences are fine.", "自由に記入してください。"))}">${esc(sec.texto || "")}</textarea>
     <div class="mt-2 flex flex-wrap items-center gap-2">
+      ${ditadoBtnHtml("rtTexto")}
       <button type="button" data-rt-aprimorar="${esc(e.id)}" class="btn-primary !px-4 !py-2 !text-[12.5px]" ${emCurso || rtVazio(sec.texto) ? "disabled" : ""}>${emCurso ? tradutorSpinnerHtml(tr3("Aprimorando…", "Improving…", "改善中…")) : esc(tr3("✨ Aprimorar redação com IA", "✨ Improve wording with AI", "✨ AI で文章を改善"))}</button>
       <label class="flex items-center gap-2 text-[12.5px] text-rinnai-g1"><input type="checkbox" data-rt-revisada="${esc(e.id)}" ${sec.revisada ? "checked" : ""} ${rtVazio(sec.texto) ? "disabled" : ""} class="h-4 w-4 accent-[#cf000e]" /> ${esc(tr3("Texto revisado por mim", "Text reviewed by me", "自分で確認済み"))}</label>
       ${sec.anterior != null ? `<button type="button" data-rt-desfazer="${esc(e.id)}" class="btn-ghost !px-3 !py-1.5 !text-[12px]">${esc(tr3("↶ Voltar ao meu texto anterior", "↶ Restore my previous text", "↶ 元に戻す"))}</button>` : ""}
@@ -12194,7 +12251,8 @@ function rtHtmlSugestao(sec, e) {
       <div><p class="mb-1 text-[11.5px] font-bold uppercase tracking-wider text-rinnai-g2">${esc(tr3("Seu texto (original)", "Your text (original)", "元の文章"))}</p>
         <pre class="max-h-80 min-h-[10rem] overflow-auto whitespace-pre-wrap rounded-rinnai border border-rinnai-line bg-rinnai-g5 p-3 font-sans text-[13px] leading-relaxed text-rinnai-g1">${esc(sg.base)}</pre></div>
       <div><p class="mb-1 text-[11.5px] font-bold uppercase tracking-wider text-rinnai-g2">${esc(tr3("Sugestão (você pode editar)", "Suggestion (you can edit)", "提案(編集可)"))}</p>
-        <textarea id="rtSugTexto" data-rt-sugtexto="${esc(e.id)}" rows="10" class="field min-h-[10rem] resize-y !text-[13px] leading-relaxed">${esc(sg.texto)}</textarea></div>
+        <textarea id="rtSugTexto" data-rt-sugtexto="${esc(e.id)}" rows="10" class="field min-h-[10rem] resize-y !text-[13px] leading-relaxed">${esc(sg.texto)}</textarea>
+        <div class="mt-1.5">${ditadoBtnHtml("rtSugTexto")}</div></div>
     </div>
     ${lista(tr3("O que a IA mudou", "What the AI changed", "変更点"), sg.alteracoes.map(esc))}
     ${lista(tr3("Informações que faltam (a IA não inventou — complete se tiver os dados)", "Missing information (not invented — add it if you have the data)", "不足情報"), sg.faltando.map(esc), "text-amber-800 dark:text-amber-200")}
@@ -14641,6 +14699,8 @@ function readerSetMode(mode) {
   E.readerBody.hidden = editing;
   E.readerEdit.hidden = !editing;
   E.btnReaderEdit.textContent = editing ? t("reader.save") : t("reader.edit");
+  const mic = el("btnReaderDitar");
+  if (mic) mic.classList.toggle("hidden", !editing); // ditado só no modo edição
   if (editing) { E.readerEdit.value = readerState ? readerState.raw : ""; E.readerEdit.focus(); }
 }
 function readerToggleEdit() {
@@ -22341,10 +22401,27 @@ function idiomaDoDitado(campoId) {
   return falaUi(currentLang);
 }
 function pararDitado() { if (ditadoAtual) { try { ditadoAtual.rec.stop(); } catch (e) {} } }
+/* Campo do botão: data-ditado="id" ou, nos campos montados no JS (sem id),
+   o campo do mesmo grupo [data-ditado-grupo]. */
+function campoDoDitado(btn) {
+  const id = btn.getAttribute("data-ditado");
+  if (id) return el(id);
+  const grupo = btn.closest("[data-ditado-grupo]");
+  return grupo ? grupo.querySelector("textarea, input") : null;
+}
+const ICONE_MIC = '<svg class="pointer-events-none h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+/* Botão "Ditar" e campo de uma linha com microfone embutido, para telas montadas no JS
+   (mesmo visual dos botões do markup). */
+function ditadoBtnHtml(alvoId) {
+  return `<button type="button" data-ditado="${esc(alvoId)}" title="${esc(t("ditado.btn"))}" aria-label="${esc(t("ditado.btn"))}" class="mic-btn inline-flex items-center gap-1 rounded-rinnai border border-rinnai-line bg-rinnai-card px-2 py-1 text-[10.5px] font-semibold text-rinnai-g2 transition hover:border-rinnai-red hover:text-rinnai-red">${ICONE_MIC}<span class="pointer-events-none">${esc(t("ditado.short"))}</span></button>`;
+}
+function ditadoCampoHtml(inputHtml) {
+  return `<span class="ditado-campo" data-ditado-grupo>${inputHtml}<button type="button" data-ditado="" title="${esc(t("ditado.btn"))}" aria-label="${esc(t("ditado.btn"))}" class="mic-btn mic-icone">${ICONE_MIC}</button></span>`;
+}
 function alternarDitado(btn) {
-  const campoId = btn.getAttribute("data-ditado");
-  const campo = el(campoId);
+  const campo = campoDoDitado(btn);
   if (!campo) return;
+  const campoId = campo.id || "";
   if (ditadoAtual && ditadoAtual.btn === btn) { pararDitado(); return; }
   pararDitado();
   if (!ReconhecimentoFala) { toast(tr3("Ditado por voz não é suportado neste navegador (use o Chrome ou o Edge).", "Voice dictation is not supported in this browser (use Chrome or Edge).", "このブラウザは音声入力に対応していません。")); return; }
@@ -22369,6 +22446,7 @@ function alternarDitado(btn) {
   const sep = base && !/\s$/.test(base) ? " " : "";
   let finais = "";
   rec.onresult = (ev) => {
+    if (!campo.isConnected) { pararDitado(); return; }
     let parcial = "";
     for (let i = ev.resultIndex; i < ev.results.length; i++) {
       const r = ev.results[i];
@@ -22387,17 +22465,22 @@ function alternarDitado(btn) {
     };
     if (ev.error !== "aborted") toast(msgs[ev.error] || tr3("Erro no ditado: ", "Dictation error: ", "音声入力エラー: ") + ev.error);
   };
+  let vigia = null;
   rec.onend = () => {
+    clearInterval(vigia);
     btn.classList.remove("is-listening");
     if (ditadoAtual && ditadoAtual.rec === rec) ditadoAtual = null;
   };
   try { rec.start(); }
   catch (e) { toast(tr3("Não foi possível iniciar o ditado.", "Could not start dictation.", "音声入力を開始できませんでした。")); return; }
+  // Troca de aba, modal fechado ou painel redesenhado: o campo some e o microfone desliga.
+  vigia = setInterval(() => { if (!campo.isConnected || !campo.getClientRects().length) pararDitado(); }, 600);
   ditadoAtual = { rec, btn, campo };
   btn.classList.add("is-listening");
   campo.focus();
 }
-if (!ReconhecimentoFala) document.querySelectorAll("[data-ditado]").forEach((b) => { b.style.display = "none"; });
+// Sem suporte, os microfones somem — inclusive os criados depois (classe no <html>).
+if (!ReconhecimentoFala) document.documentElement.classList.add("sem-ditado");
 
 /* Chamado por esconderTodasAsTelas() a cada troca de tela — nada de leitura
    em voz alta, microfone ou destaque de busca "vazando" pra tela seguinte. */
