@@ -2167,6 +2167,10 @@
       <div class="border-t border-rinnai-line pt-5">
         <label for="modelSelect" class="mb-1.5 block text-[13px] font-semibold">Modelo do Gemini</label>
         <select id="modelSelect" class="field !text-[12.5px]"></select>
+        <div class="mt-1.5 flex flex-wrap items-center justify-between gap-2">
+          <span data-modelos-status class="text-[11px] text-rinnai-g3"></span>
+          <button type="button" data-atualizar-modelos class="btn-ghost !px-2.5 !py-1 !text-[11px]">Atualizar lista</button>
+        </div>
         <p class="mt-1.5 text-[11px] leading-relaxed text-rinnai-g2">
           "Automático" tenta a lista de fallback interna (recomendado). Escolher um modelo específico só muda a ordem de tentativa — se ele falhar, o sistema ainda cai para os demais. Vale para o Laboratório e para Projetos (mesma preferência global).
         </p>
@@ -3514,6 +3518,10 @@
       <div class="border-t border-rinnai-line pt-3">
         <label for="globalModelSelect" class="mb-1.5 block text-[13px] font-semibold">Modelo do Gemini</label>
         <select id="globalModelSelect" class="field !text-[12.5px]"></select>
+        <div class="mt-1.5 flex flex-wrap items-center justify-between gap-2">
+          <span data-modelos-status class="text-[11px] text-rinnai-g3"></span>
+          <button type="button" data-atualizar-modelos class="btn-ghost !px-2.5 !py-1 !text-[11px]">Atualizar lista</button>
+        </div>
         <p class="mt-1.5 text-[11px] leading-relaxed text-rinnai-g2">
           "Automático" tenta a lista de fallback interna (recomendado). Escolher um modelo específico só muda a ordem de tentativa — se ele falhar, o sistema ainda cai para os demais.
         </p>
@@ -3566,7 +3574,17 @@
      https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent
    (a chave vai no cabeçalho x-goog-api-key — nunca na URL; ver geminiHeaders())
    Para forçar um modelo específico, deixe-o sozinho no array.               */
-const FALLBACK_MODELS = ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.7-flash-lite", "gemini-3.6-flash", "gemini-3.6-flash-lite", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
+const FALLBACK_MODELS = [
+  // Família 3.x já validada neste Portal (topo = mais desejado).
+  "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.7-flash-lite", "gemini-3.6-flash", "gemini-3.6-flash-lite", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite",
+  // Aliases que o Google aponta sempre para a versão estável mais recente.
+  "gemini-flash-latest", "gemini-flash-lite-latest",
+  // Gerações anteriores — rede de segurança para chaves/projetos sem acesso à 3.x.
+  "gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.0-flash-lite",
+  // Pro por último: mais lentos e com cota gratuita menor.
+  "gemini-pro-latest", "gemini-3-pro-preview", "gemini-2.5-pro",
+];
+const MAX_TENTATIVAS_MODELO = 12; // teto por chamada — uma falha geral não pode virar dezenas de requisições
 let  ACTIVE_MODEL = null;     // último modelo que respondeu OK — tentado primeiro nas próximas chamadas
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
@@ -3590,7 +3608,80 @@ const GEMINI_MODEL_OPTIONS = [
   { value: "gemini-3.5-flash", grupo: "Gemini 3.x", label: "Gemini 3.5 Flash" },
   { value: "gemini-3.5-flash-lite", grupo: "Gemini 3.x", label: "Gemini 3.5 Flash-Lite" },
   { value: "gemini-3.1-flash-lite", grupo: "Gemini 3.x", label: "Gemini 3.1 Flash-Lite" },
+  { value: "gemini-3-flash-preview", grupo: "Gemini 3.x", label: "Gemini 3 Flash (preview)" },
+  { value: "gemini-3-pro-preview", grupo: "Gemini 3.x", label: "Gemini 3 Pro (preview)" },
+  { value: "gemini-flash-latest", grupo: "Sempre a versão mais recente", label: "Gemini Flash (latest)" },
+  { value: "gemini-flash-lite-latest", grupo: "Sempre a versão mais recente", label: "Gemini Flash-Lite (latest)" },
+  { value: "gemini-pro-latest", grupo: "Sempre a versão mais recente", label: "Gemini Pro (latest)" },
+  { value: "gemini-2.5-pro", grupo: "Gemini 2.x", label: "Gemini 2.5 Pro" },
+  { value: "gemini-2.5-flash", grupo: "Gemini 2.x", label: "Gemini 2.5 Flash" },
+  { value: "gemini-2.5-flash-lite", grupo: "Gemini 2.x", label: "Gemini 2.5 Flash-Lite" },
+  { value: "gemini-2.0-flash", grupo: "Gemini 2.x", label: "Gemini 2.0 Flash" },
+  { value: "gemini-2.0-flash-lite", grupo: "Gemini 2.x", label: "Gemini 2.0 Flash-Lite" },
 ];
+
+/* ----------------------------------------------------------------------------
+   1.e) DESCOBERTA DE MODELOS — GET /v1beta/models (ListModels) com a chave do
+   usuário. Devolve TODOS os modelos que aquela chave pode usar, inclusive os
+   que o Google lançar depois desta versão do Portal. Com o catálogo em mãos:
+   • o seletor mostra todos os modelos de texto disponíveis na chave;
+   • o fallback pula modelos que a chave não tem (sem desperdiçar 404) e
+     acrescenta os novos ao fim da lista;
+   • 404 de um modelo durante a sessão também o tira das próximas tentativas.
+   Cache de 24 h no localStorage. Sem catálogo (offline, chave sem permissão de
+   listagem), tudo continua funcionando só com FALLBACK_MODELS.             */
+const LS_MODELOS_API = "global_gemini_modelos_api";
+const MODELOS_INDISPONIVEIS = new Set();
+// Só modelos que geram texto com systemInstruction — fora embeddings, imagem,
+// vídeo, áudio/TTS, Live API e família Gemma (não aceita systemInstruction).
+const MODELO_NAO_TEXTO_RE = /embedding|aqa|imagen|veo|tts|image|live|native-audio|audio|robotics|computer-use|gemma|learnlm|nano-banana/i;
+function catalogoModelos() {
+  try {
+    const c = JSON.parse(localStorage.getItem(LS_MODELOS_API) || "null");
+    return c && Array.isArray(c.modelos) ? c : null;
+  } catch (e) { return null; }
+}
+/* Ordena do mais desejado ao menos: versão mais nova, flash > flash-lite >
+   pro, estável > preview/experimental. */
+function pesoModelo(id) {
+  const ver = parseFloat((id.match(/gemini-(\d+(?:\.\d+)?)/) || [])[1] || "0");
+  const fam = /flash-lite/.test(id) ? 1 : /flash/.test(id) ? 0 : /pro/.test(id) ? 2 : 3;
+  const instavel = /preview|exp|-\d{2}-\d{4}|\d{4}$/.test(id) ? 1 : 0;
+  const latest = /-latest$/.test(id) ? -1 : 0;
+  return [latest, -ver, fam, instavel];
+}
+function compararModelos(a, b) {
+  const pa = pesoModelo(a), pb = pesoModelo(b);
+  for (let i = 0; i < pa.length; i++) if (pa[i] !== pb[i]) return pa[i] - pb[i];
+  return a.localeCompare(b);
+}
+async function descobrirModelosGemini(opts) {
+  const key = loadApiKey();
+  if (!key) return null;
+  const atual = catalogoModelos();
+  if (atual && !(opts && opts.forcar) && Date.now() - atual.em < 24 * 3600 * 1000) return atual;
+  const modelos = [];
+  let pageToken = "";
+  for (let pagina = 0; pagina < 10; pagina++) {
+    const res = await fetch(`${GEMINI_BASE}?pageSize=1000${pageToken ? "&pageToken=" + encodeURIComponent(pageToken) : ""}`, { headers: { "x-goog-api-key": key } });
+    if (!res.ok) throw new Error(`ListModels HTTP ${res.status}`);
+    const data = await res.json();
+    for (const m of data.models || []) {
+      const id = String(m.name || "").replace(/^models\//, "");
+      if (!/^gemini/.test(id) || MODELO_NAO_TEXTO_RE.test(id)) continue;
+      if (!(m.supportedGenerationMethods || []).includes("generateContent")) continue;
+      modelos.push({ id, nome: m.displayName || id, entrada: m.inputTokenLimit || 0, saida: m.outputTokenLimit || 0 });
+    }
+    pageToken = data.nextPageToken || "";
+    if (!pageToken) break;
+  }
+  if (!modelos.length) throw new Error("ListModels não devolveu nenhum modelo de texto Gemini");
+  modelos.sort((a, b) => compararModelos(a.id, b.id));
+  const cat = { em: Date.now(), modelos };
+  try { localStorage.setItem(LS_MODELOS_API, JSON.stringify(cat)); } catch (e) {}
+  console.log(`%c[GEMINI] ${modelos.length} modelo(s) de texto disponíveis na chave`, "color:#0a0");
+  return cat;
+}
 function loadModelPref() {
   try { return localStorage.getItem(LS_MODEL_PREF) || "auto"; } catch (e) { return "auto"; }
 }
@@ -3602,7 +3693,13 @@ function saveModelPref(v) {
    completo — sem duplicar e sem nunca perder a rede de segurança. */
 function ordemDeModelos() {
   const pref = loadModelPref();
-  return [pref !== "auto" ? pref : null, ACTIVE_MODEL, ...FALLBACK_MODELS].filter((m, i, a) => m && a.indexOf(m) === i);
+  const cat = catalogoModelos();
+  const naChave = cat ? new Set(cat.modelos.map((m) => m.id)) : null;
+  const base = naChave ? FALLBACK_MODELS.filter((m) => naChave.has(m)) : FALLBACK_MODELS;
+  const novos = cat ? cat.modelos.map((m) => m.id) : [];
+  const ordem = [ACTIVE_MODEL, ...base, ...novos].filter((m) => m && !MODELOS_INDISPONIVEIS.has(m));
+  // A preferência explícita do usuário sempre é tentada primeiro.
+  return [pref !== "auto" ? pref : null, ...ordem].filter((m, i, a) => m && a.indexOf(m) === i).slice(0, MAX_TENTATIVAS_MODELO);
 }
 const GEMINI_CONFIG = {
   temperature: 0.0,        // DETERMINISMO TOTAL — nenhuma alucinação permitida
@@ -3636,11 +3733,15 @@ function loadApiKey() {
   } catch (e) { return ""; }          // localStorage bloqueado (ex.: modo restrito)
 }
 function saveApiKey(k) {
-  try { localStorage.setItem(LS_KEY, (k || "").trim()); return true; }
+  try {
+    // Chave nova = catálogo de modelos possivelmente diferente (ver descobrirModelosGemini()).
+    if ((localStorage.getItem(LS_KEY) || "") !== (k || "").trim()) localStorage.removeItem("global_gemini_modelos_api");
+    localStorage.setItem(LS_KEY, (k || "").trim()); return true;
+  }
   catch (e) { console.warn("Não foi possível salvar a chave:", e.message); return false; }
 }
 function clearApiKey() {
-  try { localStorage.removeItem(LS_KEY); localStorage.removeItem(LS_KEY_LEGACY); } catch (e) {}
+  try { localStorage.removeItem(LS_KEY); localStorage.removeItem(LS_KEY_LEGACY); localStorage.removeItem("global_gemini_modelos_api"); } catch (e) {}
 }
 const hasApiKey = () => loadApiKey().length > 0;
 
@@ -4343,8 +4444,10 @@ async function describeGeminiError(res, etapa, modelo) {
   // Tudo abaixo é RECUPERÁVEL → cai no próximo item de FALLBACK_MODELS.
   if (res.status === 401 || res.status === 403)
     return new Error(p + `sem permissão para este modelo (HTTP ${res.status}). ${apiMsg}`.trim());
-  if (res.status === 404)
+  if (res.status === 404) {
+    MODELOS_INDISPONIVEIS.add(modelo); // não insiste nele no resto da sessão
     return new Error(p + `modelo não encontrado (HTTP 404). ${apiMsg}`.trim());
+  }
   if (res.status === 400)
     return new Error(p + `requisição rejeitada (HTTP 400). ${apiMsg || body.slice(0, 160)}`.trim());
   if (res.status >= 500)
@@ -13250,7 +13353,15 @@ function refreshSettingsBadge() {
 function popularModelSelect(selectEl) {
   if (!selectEl) return;
   const grupos = {};
-  GEMINI_MODEL_OPTIONS.forEach((opt) => {
+  const cat = catalogoModelos();
+  const naChave = cat ? new Set(cat.modelos.map((m) => m.id)) : null;
+  const conhecidos = new Set(GEMINI_MODEL_OPTIONS.map((o) => o.value));
+  const opcoes = GEMINI_MODEL_OPTIONS.map((o) => (naChave && o.value !== "auto" && !naChave.has(o.value) ? { ...o, label: o.label + " — indisponível na sua chave" } : o));
+  if (cat) cat.modelos.filter((m) => !conhecidos.has(m.id)).forEach((m) => opcoes.push({ value: m.id, grupo: `Outros modelos da sua chave (API)`, label: m.nome !== m.id ? `${m.nome} · ${m.id}` : m.id }));
+  // Preferência salva que saiu de todas as listas continua visível.
+  const pref = loadModelPref();
+  if (!opcoes.some((o) => o.value === pref)) opcoes.push({ value: pref, grupo: "Preferência salva", label: pref });
+  opcoes.forEach((opt) => {
     const chave = opt.grupo || "__root";
     if (!grupos[chave]) grupos[chave] = [];
     grupos[chave].push(opt);
@@ -13264,6 +13375,24 @@ function popularModelSelect(selectEl) {
   });
   selectEl.innerHTML = html;
   selectEl.value = loadModelPref();
+  const status = selectEl.parentElement && selectEl.parentElement.querySelector("[data-modelos-status]");
+  if (status) status.textContent = cat
+    ? `${cat.modelos.length} modelo(s) de texto encontrados na sua chave · atualizado em ${fmtDate(cat.em)}`
+    : "Lista de modelos da sua chave ainda não carregada.";
+}
+/* Botão "Atualizar lista" (nos 2 modais) — consulta a API de novo. */
+async function atualizarListaModelos(forcar) {
+  const selects = [E.modelSelect, E.globalModelSelect].filter(Boolean);
+  if (!hasApiKey()) { toast("Salve a chave de API para listar os modelos."); return; }
+  selects.forEach((s) => { const st = s.parentElement.querySelector("[data-modelos-status]"); if (st) st.textContent = "Consultando a API do Gemini…"; });
+  try {
+    const cat = await descobrirModelosGemini({ forcar });
+    selects.forEach(popularModelSelect);
+    if (forcar) toast(`${cat.modelos.length} modelo(s) disponíveis na sua chave.`);
+  } catch (err) {
+    selects.forEach(popularModelSelect);
+    selects.forEach((s) => { const st = s.parentElement.querySelector("[data-modelos-status]"); if (st) st.textContent = "Não foi possível listar os modelos (" + (err.message || err) + "). O fallback padrão continua ativo."; });
+  }
 }
 
 function openSettings() {
@@ -13292,6 +13421,7 @@ function persistSettings() {
   }
   closeSettings();
   toast("Chave salva. Você já pode gerar procedimentos.");
+  atualizarListaModelos(false);
   // Se o painel de erro estava aberto por falta de chave, limpa a tela.
   if (!E.stateError.classList.contains("hidden") && E.errorMsg.textContent.includes("API Key")) {
     showState(activeId ? "doc" : "empty");
@@ -13323,6 +13453,7 @@ function persistGlobalKey() {
   if (!ok) { toast("Não foi possível salvar: o navegador bloqueou o armazenamento local."); return; }
   closeGlobalKeyModal();
   toast("Chave salva — vale para o Laboratório e para Projetos.");
+  atualizarListaModelos(false);
 }
 function removeGlobalKey() {
   clearApiKey();
@@ -14259,6 +14390,9 @@ if (E.globalKeyModal) {
   });
 }
 if (E.btnGlobalKeySave) E.btnGlobalKeySave.addEventListener("click", () => persistGlobalKey());
+document.addEventListener("click", (e) => { if (e.target.closest("[data-atualizar-modelos]")) atualizarListaModelos(true); });
+// Catálogo de modelos da chave: atualiza em segundo plano no máximo 1x/24 h.
+if (hasApiKey()) descobrirModelosGemini().catch((err) => console.warn("[GEMINI] lista de modelos indisponível:", err.message));
 if (E.globalModelSelect) E.globalModelSelect.addEventListener("change", () => {
   saveModelPref(E.globalModelSelect.value);
   if (E.modelSelect) E.modelSelect.value = E.globalModelSelect.value;
