@@ -24,6 +24,14 @@
 | Leitura de páginas por imagem (OCR com IA) | Acontece na pesquisa do Modo A, só para páginas sem texto selecionável (digitalizadas, só marca d'água, imagem com pouco texto), ou quando o usuário clica em "Transcrever". A imagem dessas páginas é enviada ao Gemini (o mesmo aviso de privacidade já aceito cobre o envio); a transcrição fica gravada só neste navegador, junto da norma, e não é refeita nas próximas pesquisas. Páginas em branco não são enviadas. |
 | Aviso de privacidade | Passou para a versão 2, então todos aceitam de novo, porque a busca no Google é uma nova operação de tratamento. |
 
+## Tradutor de Documentos
+
+| Tratamento | Como ficou |
+|---|---|
+| Texto digital (Word, Excel, PowerPoint, PDF com texto) | Extraído no navegador; só o texto vai ao Gemini para traduzir, com o mascaramento automático. |
+| Fotos, PDFs digitalizados e imagens dentro de PDF/Word (OCR com IA) | Só o que não tem texto selecionável é enviado como imagem: a página inteira (digitalizada/foto) ou, numa página com texto, apenas o recorte de cada figura. Páginas em branco, ícones e logotipos pequenos não são enviados. Cada imagem é redesenhada antes do envio, o que descarta os metadados (GPS, aparelho). O conteúdo da imagem (rostos, crachás, assinaturas) **não** é mascarado — o aviso de privacidade já orienta o usuário a revisar o material. |
+| Leitura e tradução | Ficam só na tela (memória da página). O histórico do Tradutor guarda o texto, nunca as imagens nem o arquivo original. |
+
 ## Pendências da empresa (não se resolvem no código)
 
 1. **Chave de API da camada paga.** Na camada gratuita do Gemini API, o Google pode usar o conteúdo enviado para melhorar os produtos dele, e revisores humanos podem lê-lo. Use uma chave de um projeto com faturamento ativado, aprovado pela TI.

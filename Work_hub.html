@@ -617,6 +617,11 @@
     border-color: #cf000e;
     background: rgb(var(--r-redsoft));
   }
+  /* Tradutor: leitura incerta (⟦ ⟧) e alerta da conferência da tradução. */
+  mark.tr-incerto { background: #fde68a; color: inherit; border-radius: 2px; padding: 0 1px; }
+  mark.tr-alerta  { background: #fecaca; color: inherit; border-radius: 2px; padding: 0 1px; }
+  .dark mark.tr-incerto { background: rgba(217, 119, 6, 0.35); }
+  .dark mark.tr-alerta  { background: rgba(220, 38, 38, 0.35); }
 
   /* ---------- RECURSOS MODERNOS (paleta, atalhos, ditado, localizar, sumário) ---------- */
   .kbd {
@@ -976,7 +981,7 @@
 
   <div class="mx-auto max-w-6xl">
     <h1 class="text-center text-[26px] font-bold text-rinnai-g1 sm:text-[30px]" data-i18n="tradutor.title">Tradutor de Documentos</h1>
-    <p class="mx-auto mt-2 max-w-xl text-center text-[13px] text-rinnai-g2" data-i18n="tradutor.subtitle">Tradução técnica em 3 revisões, com glossário e base de conhecimento próprios.</p>
+    <p class="mx-auto mt-2 max-w-xl text-center text-[13px] text-rinnai-g2" data-i18n="tradutor.subtitle">Tradução técnica em 3 revisões, com glossário e base de conhecimento próprios. Lê também fotos, PDFs digitalizados, tabelas e esquemas em imagem (OCR).</p>
 
     <!-- Barra de idiomas estilo DeepL — origem (com "Detectar idioma") ⇄ destino.
          Opções preenchidas por tradutorPreencherIdiomas() (nomes no idioma da interface). -->
@@ -1007,8 +1012,8 @@
           class="flex min-h-[280px] cursor-pointer flex-col items-center justify-center rounded-rinnai border-2 border-dashed border-rinnai-line p-6 text-center transition hover:border-rinnai-red">
           <svg class="pointer-events-none h-9 w-9 text-rinnai-g3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4 7 9M12 4l5 5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
           <p class="pointer-events-none mt-3 text-[14px] font-semibold text-rinnai-g1" data-i18n="tradutor.dropTitle">Arraste seu arquivo aqui</p>
-          <p class="pointer-events-none mt-1 text-[12px] text-rinnai-g2" data-i18n="tradutor.dropSub">ou clique para selecionar — .docx, .xlsx, .pptx, .pdf</p>
-          <input type="file" id="tradutorFileInput" accept=".docx,.xlsx,.pptx,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/pdf" class="hidden" />
+          <p class="pointer-events-none mt-1 text-[12px] text-rinnai-g2" data-i18n="tradutor.dropSub">ou clique para selecionar — .docx, .xlsx, .pptx, .pdf, fotos e imagens (.jpg, .png…)</p>
+          <input type="file" id="tradutorFileInput" accept=".docx,.xlsx,.pptx,.pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp,image/*,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/pdf" class="hidden" />
         </div>
         <div id="tradutorFileChip" class="mt-3 hidden items-center justify-between gap-2 rounded-rinnai border border-rinnai-line bg-rinnai-g5 px-3 py-2 text-[12.5px]">
           <span id="tradutorFileName" class="min-w-0 flex-1 truncate font-semibold text-rinnai-g1"></span>
@@ -1016,6 +1021,10 @@
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
           </button>
         </div>
+        <label class="mt-3 flex items-start gap-2 text-[12px] leading-snug text-rinnai-g2">
+          <input type="checkbox" id="tradutorRevisarLeitura" checked class="mt-0.5 shrink-0 accent-rinnai-red" />
+          <span data-i18n="tradutor.revisarLeitura">Páginas e imagens lidas por OCR: mostrar a leitura para conferência antes de traduzir</span>
+        </label>
         </div>
         <div id="tradutorPaneTexto" class="hidden">
           <textarea id="tradutorTextInput" rows="12" data-i18n-ph="tradutor.textPh" placeholder="Cole ou digite o texto a traduzir…"
@@ -1063,6 +1072,25 @@
         <p id="tradutorOutputCount" class="mt-1.5 text-[11px] text-rinnai-g3"></p>
       </div>
     </div>
+
+    <!-- Leitura do documento (texto digital / OCR) e comparação original × tradução,
+         parte a parte — ver trRenderLeitura(). O texto lido pode ser corrigido antes de traduzir. -->
+    <section id="tradutorLeitura" class="card mt-6 hidden p-5">
+      <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0 flex-1">
+          <p class="text-[11.5px] font-bold uppercase tracking-wider text-rinnai-g2" data-i18n="tradutor.leituraTitulo">Leitura do documento e comparação com a tradução</p>
+          <p id="tradutorLeituraResumo" class="mt-1 text-[12.5px] text-rinnai-g2"></p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <label class="inline-flex items-center gap-1.5 text-[12px] text-rinnai-g2">
+            <input type="checkbox" id="tradutorIncluirImagens" class="accent-rinnai-red" />
+            <span data-i18n="tradutor.incluirImagens">Incluir as páginas originais no .docx</span>
+          </label>
+          <button type="button" id="btnTradutorLeituraTraduzir" class="btn-primary !py-2 !text-[12.5px]">Traduzir esta leitura</button>
+        </div>
+      </div>
+      <ol id="tradutorLeituraLista" class="space-y-3"></ol>
+    </section>
   </div>
 
   <!-- Modal "Ajustes de Tradução Técnica" — RAG duplo: Base de Conhecimento
@@ -5008,6 +5036,8 @@ const E = {
   tradutorOrigem: el("tradutorOrigem"), tradutorDestino: el("tradutorDestino"), btnTradutorSwap: el("btnTradutorSwap"),
   tradutorInputLabel: el("tradutorInputLabel"), tradutorOutputLabel: el("tradutorOutputLabel"),
   tradutorPaneArquivo: el("tradutorPaneArquivo"), tradutorPaneTexto: el("tradutorPaneTexto"),
+  tradutorRevisarLeitura: el("tradutorRevisarLeitura"), tradutorLeitura: el("tradutorLeitura"), tradutorLeituraResumo: el("tradutorLeituraResumo"),
+  tradutorLeituraLista: el("tradutorLeituraLista"), btnTradutorLeituraTraduzir: el("btnTradutorLeituraTraduzir"), tradutorIncluirImagens: el("tradutorIncluirImagens"),
   tradutorTextInput: el("tradutorTextInput"), tradutorInputCount: el("tradutorInputCount"), tradutorOutputCount: el("tradutorOutputCount"),
   btnTradutorOuvir: el("btnTradutorOuvir"), btnTradutorDocx: el("btnTradutorDocx"), btnTradutorTxt: el("btnTradutorTxt"),
   tradutorGlossCsvInput: el("tradutorGlossCsvInput"), btnTradutorGlossImport: el("btnTradutorGlossImport"), btnTradutorGlossExport: el("btnTradutorGlossExport"),
@@ -5399,11 +5429,14 @@ const I18N = {
     "pn.histClear": "Limpar histórico",
     "pn.viewTitle": "Detalhes da norma",
     "tradutor.title": "Tradutor de Documentos",
-    "tradutor.subtitle": "Tradução técnica em 3 revisões, com glossário e base de conhecimento próprios.",
+    "tradutor.subtitle": "Tradução técnica em 3 revisões, com glossário e base de conhecimento próprios. Lê também fotos, PDFs digitalizados, tabelas e esquemas em imagem (OCR).",
     "tradutor.settingsBtn": "Ajustes de Tradução Técnica",
     "tradutor.inputLabel": "Documento original (Inglês)",
     "tradutor.dropTitle": "Arraste seu arquivo aqui",
-    "tradutor.dropSub": "ou clique para selecionar — .docx, .xlsx, .pptx, .pdf",
+    "tradutor.dropSub": "ou clique para selecionar — .docx, .xlsx, .pptx, .pdf, fotos e imagens (.jpg, .png…)",
+    "tradutor.revisarLeitura": "Páginas e imagens lidas por OCR: mostrar a leitura para conferência antes de traduzir",
+    "tradutor.leituraTitulo": "Leitura do documento e comparação com a tradução",
+    "tradutor.incluirImagens": "Incluir as páginas originais no .docx",
     "tradutor.translateBtn": "Traduzir",
     "tradutor.outputLabel": "Tradução (Português)",
     "tradutor.copyBtn": "Copiar Texto",
@@ -5709,11 +5742,14 @@ const I18N = {
     "pn.histClear": "Clear history",
     "pn.viewTitle": "Standard details",
     "tradutor.title": "Document Translator",
-    "tradutor.subtitle": "Technical translation in 3 review passes, with your own glossary and knowledge base.",
+    "tradutor.subtitle": "Technical translation in 3 review passes, with your own glossary and knowledge base. Also reads photos, scanned PDFs, tables and diagrams in images (OCR).",
     "tradutor.settingsBtn": "Technical Translation Settings",
     "tradutor.inputLabel": "Original document (English)",
     "tradutor.dropTitle": "Drag your file here",
-    "tradutor.dropSub": "or click to select — .docx, .xlsx, .pptx, .pdf",
+    "tradutor.dropSub": "or click to select — .docx, .xlsx, .pptx, .pdf, photos and images (.jpg, .png…)",
+    "tradutor.revisarLeitura": "Pages and images read by OCR: show the reading for checking before translating",
+    "tradutor.leituraTitulo": "Document reading and comparison with the translation",
+    "tradutor.incluirImagens": "Include the original pages in the .docx",
     "tradutor.translateBtn": "Translate",
     "tradutor.outputLabel": "Translation (Portuguese)",
     "tradutor.copyBtn": "Copy Text",
@@ -6025,11 +6061,14 @@ const I18N = {
     "pn.histClear": "履歴を消去",
     "pn.viewTitle": "規格の詳細",
     "tradutor.title": "文書翻訳ツール",
-    "tradutor.subtitle": "3段階レビューの技術翻訳。専用の用語集とナレッジベース付き。",
+    "tradutor.subtitle": "3段階レビューの技術翻訳。専用の用語集とナレッジベース付き。写真、スキャンPDF、画像の表や図面も読み取ります(OCR)。",
     "tradutor.settingsBtn": "技術翻訳の設定",
     "tradutor.inputLabel": "原文書類(英語)",
     "tradutor.dropTitle": "ファイルをここにドラッグ",
-    "tradutor.dropSub": "またはクリックして選択 — .docx, .xlsx, .pptx, .pdf",
+    "tradutor.dropSub": "またはクリックして選択 — .docx, .xlsx, .pptx, .pdf, 写真・画像 (.jpg, .png…)",
+    "tradutor.revisarLeitura": "OCR で読み取ったページ・画像は、翻訳前に読み取り結果を確認する",
+    "tradutor.leituraTitulo": "文書の読み取りと訳文の比較",
+    "tradutor.incluirImagens": ".docx に原本ページを含める",
     "tradutor.translateBtn": "翻訳する",
     "tradutor.outputLabel": "翻訳結果(ポルトガル語)",
     "tradutor.copyBtn": "テキストをコピー",
@@ -7234,7 +7273,7 @@ const TRADUTOR_IDIOMAS = [
 ];
 const tradutorIdioma = (code) => TRADUTOR_IDIOMAS.find((i) => i.code === code) || TRADUTOR_IDIOMAS[1];
 const tradutorNomeIdioma = (code) => { const i = tradutorIdioma(code); return i.nome[currentLang] || i.nome.pt; };
-let tradutorPrefs = { origem: "en", destino: "pt", modo: "arquivo" };
+let tradutorPrefs = { origem: "en", destino: "pt", modo: "arquivo", revisarLeitura: true };
 
 function carregarTradutor() {
   ragTradutorArquivos  = lsGet(LS_TRADUTOR_ARQUIVOS, []);
@@ -7245,6 +7284,7 @@ function carregarTradutor() {
     origem:  valido(p.origem, true) ? p.origem : "en",
     destino: valido(p.destino, false) ? p.destino : "pt",
     modo:    p.modo === "texto" ? "texto" : "arquivo",
+    revisarLeitura: p.revisarLeitura !== false,
   };
   if (tradutorPrefs.origem === tradutorPrefs.destino) tradutorPrefs.origem = tradutorPrefs.destino === "en" ? "pt" : "en";
   renderTradutorRagList();
@@ -7252,6 +7292,7 @@ function carregarTradutor() {
   tradutorAtualizarIdiomasUI();
   tradutorDefinirModo(tradutorPrefs.modo, false);
   tradutorAtualizarContadores();
+  if (E.tradutorRevisarLeitura) E.tradutorRevisarLeitura.checked = tradutorPrefs.revisarLeitura;
 }
 function tradutorSalvarPrefs() { lsSet(LS_TRADUTOR_PREFS, tradutorPrefs); }
 
@@ -7307,6 +7348,7 @@ function tradutorDefinirModo(modo, salvar) {
   if (E.tradutorPaneArquivo) E.tradutorPaneArquivo.classList.toggle("hidden", tradutorPrefs.modo !== "arquivo");
   if (E.tradutorPaneTexto) E.tradutorPaneTexto.classList.toggle("hidden", tradutorPrefs.modo !== "texto");
   tradutorAtualizarBotao();
+  trRenderLeitura();
 }
 /* Habilita "Traduzir" só quando há o que traduzir no modo ativo. */
 function tradutorAtualizarBotao() {
@@ -7404,6 +7446,8 @@ function tradutorRemoverGlossario(id) {
 function tradutorSelecionarArquivo(file) {
   if (!file || !E.tradutorFileChip) return;
   tradutorArquivoAtual = file;
+  tradutorLeitura = null; // a leitura (e as correções) eram do arquivo anterior
+  trRenderLeitura();
   E.tradutorFileName.textContent = file.name;
   E.tradutorFileChip.classList.remove("hidden");
   E.tradutorFileChip.classList.add("flex");
@@ -7411,6 +7455,7 @@ function tradutorSelecionarArquivo(file) {
 }
 function tradutorLimparArquivo() {
   tradutorArquivoAtual = null;
+  if (tradutorLeitura && tradutorLeitura.tipo !== "texto") { tradutorLeitura = null; trRenderLeitura(); }
   if (E.tradutorFileChip) { E.tradutorFileChip.classList.add("hidden"); E.tradutorFileChip.classList.remove("flex"); }
   if (E.tradutorFileInput) E.tradutorFileInput.value = "";
   tradutorAtualizarBotao();
@@ -7528,6 +7573,8 @@ function restaurarHistoricoTradutor(id) {
   tradutorDefinirModo("texto");
   if (E.tradutorTextInput) E.tradutorTextInput.value = h.entrada || "";
   if (E.tradutorOutput) E.tradutorOutput.value = h.saida || "";
+  tradutorLeitura = null;
+  trRenderLeitura();
   tradutorAtualizarBotao();
   tradutorAtualizarContadores();
   fecharTradutorHist();
@@ -7541,6 +7588,13 @@ function removerHistoricoTradutor(id) {
 function tradutorBaixarDocx() {
   const texto = (E.tradutorOutput ? E.tradutorOutput.value : "").trim();
   if (!texto) { toast(tr3("Nada para baixar ainda.", "Nothing to download yet.", "ダウンロードする内容がまだありません。")); return; }
+  // Arquivo lido por páginas/imagens, com a tradução como saiu (sem edição manual na caixa):
+  // versão organizada por página, com a opção de incluir as páginas originais.
+  const L = tradutorLeitura;
+  if (L && trLeituraVisivel() && (L.tipo === "pdf" || L.unidades.some((u) => u.ocr)) && L.saidaFinal && texto === L.saidaFinal.trim()) {
+    trBaixarDocxOrganizado().catch((err) => toast(tr3("Falha ao gerar o .docx: ", "Failed to create the .docx: ", ".docx の作成に失敗しました: ") + ((err && err.message) || err)));
+    return;
+  }
   // breaks:true — a tradução é texto corrido; cada quebra de linha simples
   // precisa virar <br> (sem isso o marked junta as linhas num parágrafo só).
   const corpo = validarFecharTags(marked.parse(stripLatex(texto), { gfm: true, breaks: true }));
@@ -7597,7 +7651,17 @@ const TRADUTOR_ETAPAS = [
    abaixo vai em TODAS as etapas, e limparSaidaTradutor() remove o que ainda
    escapar (só "#" no início de linha seguido de espaço — "Item #3" fica). */
 const TRADUTOR_TEXTO_PURO =
-  "FORMATO DA SAÍDA: texto puro, sem sintaxe Markdown — NÃO use \"#\" para títulos nem \"```\" para blocos. Títulos ficam em uma linha própria, sem nenhum símbolo antes.";
+  "FORMATO DA SAÍDA: texto puro, sem sintaxe Markdown — NÃO use \"#\" para títulos nem \"```\" para blocos. Títulos ficam em uma linha própria, sem nenhum símbolo antes. Exceção: tabelas do texto de entrada escritas com \"|\" continuam em linhas com \"|\".";
+/* Vai em todas as etapas: o que uma tradução técnica não pode alterar. A
+   conferência local (trConferirTraducao) verifica depois cada item. */
+const TRADUTOR_PRESERVAR = [
+  "PRESERVAÇÃO TÉCNICA (obrigatória):",
+  "- Números, casas decimais e o separador decimal ficam EXATAMENTE como no original (\"1.5\" continua \"1.5\"; \"2,8\" continua \"2,8\"). Não converta unidades, não arredonde e não regionalize números.",
+  "- Unidades, símbolos, fórmulas, códigos de produto e de modelo, números de série, referências de circuito (R1, F2, X3…) e códigos de normas permanecem sem tradução.",
+  "- Tabelas: as mesmas linhas e colunas, na mesma ordem; traduza só o texto das células.",
+  "- Trechos entre ⟦ ⟧ (leitura incerta do original) continuam entre ⟦ ⟧ — traduza o que estiver dentro se for texto, sem resolver a dúvida. Marcas entre colchetes ([Diagrama], [Desenho], [Etiqueta], [manuscrito], [Figura…]) continuam entre colchetes.",
+  "- Linhas com ⟪número⟫ separam páginas: copie cada uma exatamente, sozinha na linha e no mesmo lugar.",
+].join("\n");
 function limparSaidaTradutor(txt) {
   return String(txt || "")
     .replace(/^\s*```[^\n]*\n([\s\S]*?)\n?```\s*$/, "$1")
@@ -7610,69 +7674,574 @@ function tradutorSpinnerHtml(texto) {
   return '<svg class="pointer-events-none h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 12a9 9 0 1 1-9-9" stroke-linecap="round"/></svg><span>' + esc(texto) + "</span>";
 }
 
-/* Motor de tradução — extrai o texto do arquivo (client-side, ver
-   extrairTextoTradutor()) e executa as 3 etapas de TRADUTOR_ETAPAS em
-   sequência, cada uma com sua PRÓPRIA chamada ao Gemini (texto puro — não
-   existe suporte documentado da API do Gemini pra ler Word/Excel/
-   PowerPoint binário nativamente, só imagem/PDF/áudio/vídeo; extrair antes
-   é o caminho confiável, mesma infra do Documento Padrão). A tela atualiza
-   a cada etapa concluída (feedback incremental) — se uma etapa no meio
-   falhar, o resultado da última etapa bem-sucedida continua visível em vez
-   de sumir tudo. */
+/* Motor de tradução — lê o arquivo no navegador (texto digital direto;
+   páginas digitalizadas, fotos e figuras pelo OCR do Gemini — trLerArquivo)
+   e executa as 3 etapas de TRADUTOR_ETAPAS por blocos de páginas, cada uma
+   com sua PRÓPRIA chamada ao Gemini. A tela atualiza a cada etapa concluída
+   (se uma etapa falhar, o que já foi traduzido continua visível) e, no fim,
+   números, códigos e tabelas da tradução são conferidos contra o original.
+   Com algo lido por OCR e "conferir a leitura" ligado, a tradução espera o
+   usuário revisar/corrigir o texto lido. */
 async function traduzirDocumento() {
   const modoTexto = tradutorPrefs.modo === "texto";
   if (!modoTexto && !tradutorArquivoAtual) { toast("Selecione um arquivo primeiro."); return; }
   if (modoTexto && !(E.tradutorTextInput && E.tradutorTextInput.value.trim())) { toast("Digite ou cole um texto primeiro."); return; }
   if (!hasApiKey()) { toast(t("toast.needKey")); openGlobalKeyModal(); return; }
-  if (!E.btnTraduzir) return;
+  if (!E.btnTraduzir || tradutorLeituraBusy) return;
 
-  const iconOriginal = E.btnTraduzir.innerHTML;
-  E.btnTraduzir.disabled = true;
-
-  try {
-    let textoOriginal;
-    if (modoTexto) textoOriginal = E.tradutorTextInput.value.trim();
-    else {
-      E.btnTraduzir.innerHTML = tradutorSpinnerHtml(`Lendo "${tradutorArquivoAtual.name}"…`);
-      textoOriginal = (await extrairTextoTradutor(tradutorArquivoAtual) || "").trim();
-    }
-    if (!textoOriginal) throw new Error("Não consegui extrair texto deste arquivo.");
-
-    const destinoDesc = tradutorIdioma(tradutorPrefs.destino).prompt;
-    const origemAuto = tradutorPrefs.origem === "auto";
-    const origemDesc = origemAuto ? "no idioma original" : tradutorIdioma(tradutorPrefs.origem).prompt;
-    const instrucaoIdiomas = origemAuto
-      ? `Detecte automaticamente o idioma do texto fornecido e traduza-o para o ${destinoDesc}.`
-      : `Traduza o texto fornecido do ${origemDesc} para o ${destinoDesc}.`;
-
-    const glossarioTxt = ragTradutorGlossario.length
-      ? ragTradutorGlossario.map((g) => `- "${g.termo}" → "${g.traducao}"`).join("\n")
-      : "(nenhum termo cadastrado)";
-    const ragTxt = ragTradutorArquivos.length
-      ? ragTradutorArquivos.map((r) => `— ${r.nome} —\n${r.conteudo}`).join("\n\n")
-      : "(nenhum documento de referência anexado)";
-
-    let atual = textoOriginal;
-    const total = TRADUTOR_ETAPAS.length;
-    for (let i = 0; i < total; i++) {
-      const etapa = TRADUTOR_ETAPAS[i];
-      E.btnTraduzir.innerHTML = tradutorSpinnerHtml(`Processando revisão ${i + 1} de ${total}…`);
-      const ctx = { textoOriginal, anterior: atual, glossarioTxt, ragTxt, origemDesc, destinoDesc, instrucaoIdiomas };
-      const sys = etapa.sistema(ctx) + "\n\n" + TRADUTOR_TEXTO_PURO;
-      const entrada = etapa.entrada(ctx);
-      atual = limparSaidaTradutor(await callGemini(sys, entrada, `Tradução Técnica — ${etapa.nome}`, { maxOutputTokens: 8192, timeoutMs: 180000 }));
-      if (E.tradutorOutput) E.tradutorOutput.value = atual;
-      tradutorAtualizarContadores();
-    }
-    salvarHistoricoTradutor(textoOriginal, atual);
-    toast("Tradução concluída.");
-  } catch (e) {
-    console.error("[traduzirDocumento]", e);
-    toast("Falha ao traduzir: " + (e.message || e));
-  } finally {
-    E.btnTraduzir.innerHTML = iconOriginal;
-    tradutorAtualizarBotao();
+  if (modoTexto) {
+    const texto = E.tradutorTextInput.value.trim();
+    tradutorLeitura = { arquivo: tr3("Texto colado", "Pasted text", "貼り付けたテキスト"), tipo: "texto", avisos: [],
+      unidades: [{ n: 1, rotulo: tr3("Texto", "Text", "本文"), modo: "digital", textoDigital: texto, texto, ocr: false, incertos: [] }] };
+    await trExecutarTraducaoLeitura();
+    return;
   }
+  // O mesmo arquivo já lido (e talvez corrigido): traduz a leitura atual, sem ler de novo.
+  if (!(tradutorLeitura && tradutorLeitura.file === tradutorArquivoAtual)) {
+    const file = tradutorArquivoAtual;
+    const iconOriginal = E.btnTraduzir.innerHTML;
+    E.btnTraduzir.disabled = true;
+    tradutorLeituraBusy = true;
+    let leitura = null;
+    try {
+      E.btnTraduzir.innerHTML = tradutorSpinnerHtml(`Lendo "${file.name}"…`);
+      leitura = await trLerArquivo(file, (txt) => { E.btnTraduzir.innerHTML = tradutorSpinnerHtml(txt); });
+    } catch (e) {
+      console.error("[traduzirDocumento]", e);
+      toast(tr3("Falha ao ler o arquivo: ", "Failed to read the file: ", "ファイルを読み取れませんでした: ") + (e.message || e));
+    } finally {
+      tradutorLeituraBusy = false;
+      E.btnTraduzir.innerHTML = iconOriginal;
+      tradutorAtualizarBotao();
+    }
+    if (!leitura || tradutorArquivoAtual !== file) return;
+    tradutorLeitura = leitura;
+    trRenderLeitura();
+    if (!leitura.unidades.some((u) => u.modo !== "em_branco" && String(u.texto || "").trim())) {
+      toast(tr3("Não encontrei texto neste arquivo — veja a leitura abaixo; dá para digitar o texto manualmente antes de traduzir.", "No text found in this file — see the reading below; you can type the text manually before translating.", "このファイルに文字が見つかりません。"));
+      return;
+    }
+    if (leitura.unidades.some((u) => u.ocr) && tradutorPrefs.revisarLeitura) {
+      const pontos = leitura.unidades.reduce((s, u) => s + u.incertos.length, 0);
+      toast(tr3(`Leitura concluída${pontos ? ` com ${pontos} ponto(s) para revisar` : ""}. Confira o texto lido, corrija se precisar e clique em "Traduzir esta leitura".`, `Reading done${pontos ? ` with ${pontos} point(s) to review` : ""}. Check the text read, correct it if needed and click "Translate this reading".`, "読み取り完了。内容を確認して「この内容を翻訳」を押してください。"));
+      if (E.tradutorLeitura) E.tradutorLeitura.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+  }
+  await trExecutarTraducaoLeitura();
+}
+
+/* ============================================================================
+   TRADUTOR — LEITURA DE DOCUMENTOS COM OCR (fotos, PDFs digitalizados,
+   tabelas e esquemas em imagem) E CONFERÊNCIA DA TRADUÇÃO
+   ----------------------------------------------------------------------------
+   1) Identificação — página a página: texto digital, imagem ou misto
+      (camada de texto + figuras, pela lista de operações do PDF).
+   2) Extração — o texto digital é usado como está; o Gemini (visão) lê só o
+      que não tem texto: a página inteira (digitalizada/foto) ou, na página
+      mista, cada figura recortada, inserida na altura em que aparece.
+   3) Organização — a leitura volta em ordem de leitura, com títulos, listas,
+      tabelas em Markdown e, em esquemas, cada rótulo com o seu elemento.
+   4) Verificação — leitura incerta vem marcada ⟦…?⟧ (nunca completada por
+      suposição) e caracteres ambíguos (O/0, l/1) em números são apontados.
+      O usuário pode corrigir a leitura antes de traduzir.
+   5) Tradução — as 3 revisões de TRADUTOR_ETAPAS, por blocos de páginas.
+   6) Revisão — números, separador decimal, códigos, fórmulas, tabelas e
+      marcas de incerteza da tradução conferidos contra o original.
+   7) Apresentação — original × tradução lado a lado, com a página original.
+   ========================================================================== */
+const TR_EXT_IMAGEM = /\.(png|jpe?g|webp|gif|bmp)$/i;
+const TR_BLOCO_MAX = 9000;     // caracteres por bloco de tradução
+const TR_MIN_FIGURA = 0.03;    // fração da página para uma figura ser lida por OCR
+const TR_FUNDO_PAGINA = 0.8;   // figura que cobre a página: fundo de PDF digitalizado
+let tradutorLeitura = null;    // { arquivo, file, tipo, unidades: [...], avisos, pdfBytes? }
+let tradutorLeituraBusy = false;
+
+const TR_PROMPT_OCR = [
+  "[TRADUTOR · ETAPA=OCR]",
+  "Transcreva TODO o texto visível nesta imagem de documento técnico, na ordem natural de leitura, NO IDIOMA ORIGINAL (não traduza).",
+  "Organize: títulos em linha própria; parágrafos separados por uma linha em branco; listas com \"-\" ou com a numeração original; tabelas em Markdown (| coluna | coluna |), mantendo a relação entre linhas, colunas, cabeçalhos e unidades; legendas, notas e advertências em linha própria.",
+  "Esquemas, diagramas elétricos, desenhos técnicos, etiquetas e placas: escreva [Diagrama] (ou [Desenho], [Etiqueta]) e, em seguida, cada texto com o elemento a que se refere, um por linha (ex.: \"R1 — 10 kΩ\", \"F1 — fusível 2 A\", \"cota 120 mm entre A e B\").",
+  "Copie EXATAMENTE como aparecem: números e casas decimais, separador decimal (vírgula ou ponto), unidades, símbolos (Ω µ ° ± ≤ ≥ ⌀ ~), fórmulas químicas e matemáticas, códigos de produto e de modelo, números de série, referências de circuito. Não converta nada.",
+  "Leitura incerta: NUNCA complete por suposição. Envolva o trecho duvidoso em ⟦ ⟧ com a melhor leitura e \"?\" (ex.: ⟦1O?⟧, ⟦8,5?⟧, ⟦Ventil?⟧); trecho ilegível → ⟦ilegível⟧. Texto manuscrito: escreva [manuscrito] antes dele e marque as incertezas da mesma forma.",
+  "Sem texto na imagem: responda [sem texto]. Responda somente com a transcrição.",
+].join("\n");
+
+/* ---------- 1/2) Identificação e extração ---------- */
+/* Linhas da página com a posição vertical (para inserir as figuras na ordem de leitura). */
+function trLinhasComAltura(items, alturaPag) {
+  const frags = items.filter((it) => typeof it.str === "string" && it.str.trim()).map((it) => ({ it, y: it.transform[5], h: Math.abs(it.transform[3]) || 8 }));
+  frags.sort((a, b) => b.y - a.y);
+  const linhas = [];
+  let atual = null;
+  for (const f of frags) {
+    if (!atual || Math.abs(atual.y - f.y) > Math.max(2, Math.min(atual.h, f.h) * 0.45)) { atual = { y: f.y, h: f.h, items: [] }; linhas.push(atual); }
+    atual.items.push(f.it);
+  }
+  return linhas.map((l) => ({ topo: alturaPag - l.y - l.h, texto: pnLinhasDaPagina(l.items) }));
+}
+/* Recorta uma figura (retângulo no espaço do PDF) da página renderizada. */
+async function trRecortarJpeg(page, ret) {
+  const escala = Math.min(3, 1600 / Math.max(10, ret.x1 - ret.x0, ret.y1 - ret.y0));
+  const vp = page.getViewport({ scale: escala });
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+  const c2 = canvas.getContext("2d");
+  c2.fillStyle = "#fff"; c2.fillRect(0, 0, canvas.width, canvas.height);
+  await page.render({ canvasContext: c2, viewport: vp }).promise;
+  // convertToViewportRectangle considera a rotação e a origem da página.
+  const [ax, ay, bx, by] = vp.convertToViewportRectangle([ret.x0, ret.y0, ret.x1, ret.y1]);
+  const x = Math.max(0, Math.min(ax, bx)), y = Math.max(0, Math.min(ay, by));
+  const w = Math.max(1, Math.min(canvas.width, Math.max(ax, bx)) - x), h = Math.max(1, Math.min(canvas.height, Math.max(ay, by)) - y);
+  const corte = document.createElement("canvas");
+  corte.width = Math.round(w); corte.height = Math.round(h);
+  corte.getContext("2d").drawImage(canvas, x, y, w, h, 0, 0, corte.width, corte.height);
+  const b64 = corte.toDataURL("image/jpeg", 0.88).split(",")[1];
+  canvas.width = canvas.height = corte.width = corte.height = 0;
+  return b64;
+}
+/* Imagem (foto, captura de tela) → JPEG ≤ 2000 px. Redesenhar no canvas também
+   descarta os metadados EXIF (GPS, aparelho) antes do envio. */
+async function trImagemParaJpeg(blobOuUrl) {
+  const url = typeof blobOuUrl === "string" ? blobOuUrl : URL.createObjectURL(blobOuUrl);
+  try {
+    const img = await new Promise((ok, falha) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => falha(new Error(tr3("a imagem não pôde ser aberta", "the image could not be opened", "画像を開けません"))); i.src = url; });
+    const k = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+    const g = c.getContext("2d");
+    g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+    const b64 = c.toDataURL("image/jpeg", 0.9).split(",")[1];
+    c.width = c.height = 0;
+    return { b64, w: img.naturalWidth, h: img.naturalHeight };
+  } finally { if (typeof blobOuUrl !== "string") URL.revokeObjectURL(url); }
+}
+async function trOcr(b64, rotulo, contexto) {
+  const r = await pnChamarGemini(TR_PROMPT_OCR, "", `Tradutor · Leitura por OCR — ${rotulo}`,
+    { parts: [{ text: `Transcreva ${contexto} (${rotulo}).` }, { inlineData: { mimeType: "image/jpeg", data: b64 } }], maxOutputTokens: 8192, timeoutMs: 150000 });
+  const t = cleanMarkdownFences(r.texto).trim();
+  return /^\[sem texto\]$/i.test(t) ? "" : t;
+}
+/* Executa fn em cada item com até n em paralelo (páginas lidas por OCR). */
+async function trEmParalelo(itens, n, fn) {
+  let proximo = 0;
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(n, itens.length)) }, async () => {
+    while (proximo < itens.length) { const i = proximo++; await fn(itens[i], i); }
+  }));
+}
+/* Lê o arquivo e devolve as unidades (páginas, imagens, blocos de texto) já transcritas. */
+async function trLerArquivo(file, progresso) {
+  const nome = (file.name || "").toLowerCase();
+  const avisar = (txt) => { if (progresso) progresso(txt); };
+  const leitura = { arquivo: file.name, file, tipo: "texto", unidades: [], avisos: [] };
+  const ocrUnidade = async (u, b64, contexto) => {
+    try { u.texto = await trOcr(b64, u.rotulo, contexto); }
+    catch (err) {
+      if (err && err.fatal) throw err;
+      u.erro = (err && err.message) || String(err); u.texto = "";
+    }
+    u.ocr = true;
+  };
+  if (/\.pdf$/.test(nome) || file.type === "application/pdf") {
+    if (!PDFJS_OK || !window.pdfjsLib) throw new Error("PDF.js não carregou (sem internet?). Recarregue a página.");
+    leitura.tipo = "pdf";
+    leitura.pdfBytes = new Uint8Array(await file.arrayBuffer());
+    const pdf = await pdfjsLib.getDocument({ data: leitura.pdfBytes.slice(0) }).promise;
+    try {
+      // Identificação: texto, linhas recorrentes (marca d'água/rodapé) e figuras de cada página.
+      const brutas = [];
+      for (let n = 1; n <= pdf.numPages; n++) {
+        avisar(tr3(`Identificando o conteúdo — página ${n} de ${pdf.numPages}…`, `Identifying content — page ${n} of ${pdf.numPages}…`, `内容を確認中 ${n}/${pdf.numPages}…`));
+        const page = await pdf.getPage(n);
+        const vp1 = page.getViewport({ scale: 1 });
+        const items = (await page.getTextContent()).items;
+        const cob = await pnCoberturaImagem(page);
+        const area = vp1.width * vp1.height;
+        brutas.push({ n, texto: pnLinhasDaPagina(items), linhas: trLinhasComAltura(items, vp1.height), imagem: cob.imagem, desenho: cob.desenho,
+          figuras: (cob.retangulos || []).map((f) => ({ ...f, fracao: ((f.x1 - f.x0) * (f.y1 - f.y0)) / area })).filter((f) => f.fracao >= TR_MIN_FIGURA) });
+      }
+      const avaliadas = pnAvaliarPaginas(brutas.map((b) => ({ n: b.n, texto: b.texto, imagem: b.imagem, desenho: b.desenho })), true);
+      brutas.forEach((b, i) => {
+        const q = avaliadas[i].qualidade;
+        const soImagem = q.semTexto || q.avisos.includes("imagem");
+        // PDF pesquisável (imagem da página + camada de texto): o texto digital já é a leitura.
+        const figuras = soImagem ? b.figuras : b.figuras.filter((f) => f.fracao < TR_FUNDO_PAGINA);
+        const modo = q.emBranco ? "em_branco" : soImagem ? "imagem" : figuras.length ? "misto" : "digital";
+        leitura.unidades.push({ n: b.n, rotulo: tr3(`Página ${b.n}`, `Page ${b.n}`, `${b.n} ページ`), modo, textoDigital: b.texto, texto: modo === "digital" ? b.texto : "", ocr: false, figuras, linhas: b.linhas });
+      });
+      // Extração por OCR: página inteira (imagem) ou só as figuras (misto), na altura em que aparecem.
+      const pend = leitura.unidades.filter((u) => u.modo === "imagem" || u.modo === "misto");
+      let feitas = 0;
+      await trEmParalelo(pend, 2, async (u) => {
+        feitas++;
+        avisar(tr3(`Lendo por OCR — ${u.rotulo} (${feitas} de ${pend.length})…`, `OCR reading — ${u.rotulo} (${feitas} of ${pend.length})…`, `OCR 読み取り中 — ${u.rotulo} (${feitas}/${pend.length})…`));
+        if (u.modo === "imagem") { await ocrUnidade(u, await pnRenderizarPaginaJpeg(pdf, u.n), "esta página"); return; }
+        const page = await pdf.getPage(u.n);
+        const altura = page.getViewport({ scale: 1 }).height;
+        const blocos = u.linhas.map((l) => ({ topo: l.topo, texto: l.texto }));
+        for (let k = 0; k < u.figuras.length; k++) {
+          const f = u.figuras[k], sub = { rotulo: tr3(`${u.rotulo}, figura ${k + 1}`, `${u.rotulo}, figure ${k + 1}`, `${u.rotulo} 図 ${k + 1}`) };
+          await ocrUnidade(sub, await trRecortarJpeg(page, f), "esta figura recortada de uma página");
+          if (sub.erro) u.erro = sub.erro;
+          const rot = tr3(`Figura ${k + 1}`, `Figure ${k + 1}`, `図 ${k + 1}`);
+          if (sub.texto) blocos.push({ topo: altura - f.y1, texto: `[${rot} — ${tr3("texto lido por OCR", "text read by OCR", "OCR で読み取り")}]\n${sub.texto}\n[/${rot}]` });
+        }
+        blocos.sort((a, b) => a.topo - b.topo);
+        u.texto = blocos.map((b) => b.texto).join("\n");
+        u.ocr = true;
+      });
+    } finally { try { await pdf.destroy(); } catch (e) {} }
+  } else if (TR_EXT_IMAGEM.test(nome) || /^image\//.test(file.type)) {
+    leitura.tipo = "imagem";
+    const u = { n: 1, rotulo: file.name, modo: "imagem", textoDigital: "", texto: "", ocr: false };
+    leitura.unidades.push(u);
+    avisar(tr3("Lendo a imagem por OCR…", "Reading the image by OCR…", "画像を OCR で読み取り中…"));
+    const img = await trImagemParaJpeg(file);
+    u.imagemUrl = "data:image/jpeg;base64," + img.b64;
+    await ocrUnidade(u, img.b64, "esta imagem (foto, captura de tela ou digitalização)");
+  } else if (/\.docx$/.test(nome) || file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+    if (!window.mammoth) throw new Error("Mammoth.js não carregou (sem internet?).");
+    leitura.tipo = "docx";
+    const { value } = await window.mammoth.convertToHtml({ arrayBuffer: await file.arrayBuffer() });
+    const doc = new DOMParser().parseFromString(`<body>${value}</body>`, "text/html");
+    const textoDe = (el) => el.textContent.replace(/\s+/g, " ").trim();
+    let texto = [], nTexto = 0, nImg = 0;
+    const fecharTexto = () => {
+      const t = texto.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+      texto = [];
+      if (t) leitura.unidades.push({ n: leitura.unidades.length + 1, rotulo: tr3(`Texto ${++nTexto}`, `Text ${nTexto}`, `本文 ${nTexto}`), modo: "digital", textoDigital: t, texto: t, ocr: false });
+    };
+    const imagens = [];
+    // Texto e imagens na ordem do documento; tabelas viram tabelas Markdown.
+    for (const el of Array.from(doc.body.children)) {
+      if (el.tagName === "TABLE") {
+        const linhas = Array.from(el.querySelectorAll("tr")).map((tr) => Array.from(tr.children).map((c) => textoDe(c).replace(/\|/g, "/")));
+        if (linhas.length) texto.push("", `| ${linhas[0].join(" | ")} |`, `|${linhas[0].map(() => "---").join("|")}|`, ...linhas.slice(1).map((l) => `| ${l.join(" | ")} |`), "");
+      } else if (el.tagName === "UL" || el.tagName === "OL") Array.from(el.children).forEach((li, i) => texto.push(`${el.tagName === "OL" ? `${i + 1}.` : "-"} ${textoDe(li)}`));
+      else if (textoDe(el)) texto.push(textoDe(el), "");
+      for (const im of el.querySelectorAll("img")) {
+        if (!/^data:image\//.test(im.getAttribute("src") || "")) continue;
+        fecharTexto();
+        const u = { n: leitura.unidades.length + 1, rotulo: tr3(`Imagem ${++nImg}`, `Image ${nImg}`, `画像 ${nImg}`), modo: "imagem", textoDigital: "", texto: "", ocr: false, imagemUrl: im.getAttribute("src") };
+        leitura.unidades.push(u); imagens.push(u);
+      }
+    }
+    fecharTexto();
+    let feitas = 0;
+    await trEmParalelo(imagens, 2, async (u) => {
+      feitas++;
+      avisar(tr3(`Lendo por OCR — ${u.rotulo} (${feitas} de ${imagens.length})…`, `OCR reading — ${u.rotulo} (${feitas} of ${imagens.length})…`, `OCR 読み取り中 — ${u.rotulo}…`));
+      const img = await trImagemParaJpeg(u.imagemUrl);
+      if (img.w * img.h < 15000) { u.modo = "em_branco"; return; } // ícones e logotipos pequenos
+      u.imagemUrl = "data:image/jpeg;base64," + img.b64;
+      await ocrUnidade(u, img.b64, "esta imagem incorporada a um documento Word");
+    });
+  } else {
+    const t = (await extrairTextoTradutor(file) || "").trim();
+    leitura.unidades.push({ n: 1, rotulo: tr3("Texto", "Text", "本文"), modo: "digital", textoDigital: t, texto: t, ocr: false });
+    if (/\.pptx$/.test(nome)) leitura.avisos.push(tr3("Apresentações: só o texto dos slides é lido — imagens dentro dos slides não passam por OCR.", "Presentations: only slide text is read — images inside slides are not OCR'd.", "スライド内の画像は OCR されません。"));
+  }
+  leitura.unidades.forEach((u) => { u.incertos = trVerificarLeitura(u); });
+  return leitura;
+}
+
+/* ---------- 4) Verificação da leitura ---------- */
+function trVerificarLeitura(u) {
+  const out = [];
+  const t = String(u.texto || "");
+  for (const m of t.matchAll(/⟦([^⟧]*)⟧/g)) out.push({ tipo: /ileg/i.test(m[1]) ? "ilegivel" : "incerto", trecho: m[0] });
+  if (u.ocr) {
+    // O/0 e l/I/1 trocados dentro de números ("1O", "2,l5"): só letras ambíguas + algarismos.
+    for (const m of t.matchAll(/(?<![\p{L}\d⟦])[\p{L}\d][\p{L}\d.,]*(?![\p{L}\d])/gu)) {
+      const w = m[0].replace(/[.,]+$/, "");
+      if (/\d/.test(w) && /[OoIl]/.test(w) && !/[^\dOoIl.,]/.test(w) && !/^O[23]$/.test(w)) out.push({ tipo: "ambiguo", trecho: w, letras: [...new Set(w.match(/[OoIl]/g))].join(" ") });
+    }
+    if (!t.trim() && !u.erro) out.push({ tipo: "vazio", trecho: "" });
+  }
+  if (u.erro) out.push({ tipo: "erro", trecho: u.erro });
+  return out;
+}
+const TR_INCERTO_ROTULO = {
+  incerto: () => tr3("leitura incerta", "uncertain reading", "読み取り不確か"),
+  ilegivel: () => tr3("trecho ilegível", "illegible passage", "判読不能"),
+  ambiguo: () => tr3("letra no meio de um número (O no lugar de 0, l ou I no lugar de 1?)", "letter inside a number (O for 0, l or I for 1?)", "数値の中に文字 (O→0、l/I→1 の誤読?)"),
+  vazio: () => tr3("nenhum texto encontrado na imagem", "no text found in the image", "画像に文字がありません"),
+  erro: () => tr3("a leitura por OCR falhou", "OCR reading failed", "OCR に失敗しました"),
+};
+
+/* ---------- 6) Conferência da tradução contra o original ---------- */
+function trTokensTecnicos(texto) {
+  const t = String(texto || "");
+  const nums = t.match(/(?<![\p{L}\d.,])\d+(?:[.,]\d+)*(?!\d)/gu) || [];
+  // Códigos, modelos, referências de circuito e fórmulas: letra maiúscula + algarismo no mesmo termo.
+  const codigos = (t.match(/[\p{L}\d]+(?:[-/][\p{L}\d]+)*/gu) || []).filter((c) => /\d/.test(c) && /\p{Lu}/u.test(c));
+  return { nums, codigos };
+}
+function trConferirTraducao(orig, trad) {
+  const p = [];
+  const a = trTokensTecnicos(orig), b = trTokensTecnicos(trad);
+  const conta = (arr) => arr.reduce((m, x) => m.set(x, (m.get(x) || 0) + 1), new Map());
+  const cb = conta(b.nums), cbc = conta(b.codigos);
+  conta(a.nums).forEach((n, x) => {
+    if ((cb.get(x) || 0) >= n) return;
+    const troca = /[.,]/.test(x) ? x.replace(/[.,]/g, (c) => (c === "." ? "," : ".")) : "";
+    p.push(troca && cb.get(troca) ? { tipo: "separador", trecho: x, detalhe: troca } : { tipo: "numero", trecho: x });
+  });
+  conta(a.codigos).forEach((n, x) => { if ((cbc.get(x) || 0) < n) p.push({ tipo: "codigo", trecho: x }); });
+  const tabelas = (s) => String(s || "").split("\n").filter((l) => /^\s*\|.*\|\s*$/.test(l)).map((l) => l.trim().split("|").length - 2);
+  const ta = tabelas(orig), tb = tabelas(trad);
+  if (ta.length !== tb.length || ta.some((c, i) => c !== tb[i])) p.push({ tipo: "tabela", trecho: `${ta.length}`, detalhe: `${tb.length}` });
+  const ia = (String(orig).match(/⟦[^⟧]*⟧/g) || []).length, ib = (String(trad).match(/⟦[^⟧]*⟧/g) || []).length;
+  if (ia !== ib) p.push({ tipo: "incerto", trecho: `${ia}`, detalhe: `${ib}` });
+  return p;
+}
+const TR_CONF_ROTULO = {
+  numero: (x) => tr3(`valor do original ausente na tradução: ${x.trecho}`, `original value missing in the translation: ${x.trecho}`, `原文の数値が訳文にありません: ${x.trecho}`),
+  separador: (x) => tr3(`separador decimal alterado: ${x.trecho} virou ${x.detalhe}`, `decimal separator changed: ${x.trecho} became ${x.detalhe}`, `小数点が変更されました: ${x.trecho} → ${x.detalhe}`),
+  codigo: (x) => tr3(`código, referência ou fórmula do original ausente na tradução: ${x.trecho}`, `original code, reference or formula missing: ${x.trecho}`, `原文のコード/記号がありません: ${x.trecho}`),
+  tabela: (x) => tr3(`estrutura de tabela diferente do original (${x.trecho} linhas de tabela no original, ${x.detalhe} na tradução)`, `table structure differs (${x.trecho} table rows in the original, ${x.detalhe} in the translation)`, `表の構造が異なります (原文 ${x.trecho} 行 / 訳文 ${x.detalhe} 行)`),
+  incerto: (x) => tr3(`marcas de leitura incerta ⟦ ⟧ não conferem (${x.trecho} no original, ${x.detalhe} na tradução)`, `uncertain-reading marks ⟦ ⟧ do not match (${x.trecho} in the original, ${x.detalhe} in the translation)`, `不確か表示 ⟦ ⟧ が一致しません (${x.trecho} / ${x.detalhe})`),
+};
+
+/* ---------- 5) Tradução (3 revisões) por blocos — ⟪n⟫ separa as unidades ---------- */
+async function trTraduzirTexto(texto, aoEtapa, aoParcial) {
+  const destinoDesc = tradutorIdioma(tradutorPrefs.destino).prompt;
+  const origemAuto = tradutorPrefs.origem === "auto";
+  const origemDesc = origemAuto ? "no idioma original" : tradutorIdioma(tradutorPrefs.origem).prompt;
+  const instrucaoIdiomas = origemAuto
+    ? `Detecte automaticamente o idioma do texto fornecido e traduza-o para o ${destinoDesc}.`
+    : `Traduza o texto fornecido do ${origemDesc} para o ${destinoDesc}.`;
+  const glossarioTxt = ragTradutorGlossario.length
+    ? ragTradutorGlossario.map((g) => `- "${g.termo}" → "${g.traducao}"`).join("\n")
+    : "(nenhum termo cadastrado)";
+  const ragTxt = ragTradutorArquivos.length
+    ? ragTradutorArquivos.map((r) => `— ${r.nome} —\n${r.conteudo}`).join("\n\n")
+    : "(nenhum documento de referência anexado)";
+  let atual = texto;
+  for (let i = 0; i < TRADUTOR_ETAPAS.length; i++) {
+    const etapa = TRADUTOR_ETAPAS[i];
+    if (aoEtapa) aoEtapa(i, TRADUTOR_ETAPAS.length);
+    const ctx = { textoOriginal: texto, anterior: atual, glossarioTxt, ragTxt, origemDesc, destinoDesc, instrucaoIdiomas };
+    const sys = etapa.sistema(ctx) + "\n\n" + TRADUTOR_TEXTO_PURO + "\n\n" + TRADUTOR_PRESERVAR;
+    atual = limparSaidaTradutor(await callGemini(sys, etapa.entrada(ctx), `Tradução Técnica — ${etapa.nome}`, { maxOutputTokens: 8192, timeoutMs: 180000 }));
+    if (aoParcial) aoParcial(atual);
+  }
+  return atual;
+}
+async function trTraduzirLeitura(leitura, aoProgresso, aoParcial) {
+  const us = leitura.unidades.filter((u) => u.modo !== "em_branco" && String(u.texto || "").trim());
+  leitura.unidades.forEach((u) => { u.traducao = null; u.conferencia = null; u.semDivisao = false; });
+  const blocos = [];
+  let bloco = [], tam = 0;
+  for (const u of us) {
+    if (bloco.length && tam + u.texto.length > TR_BLOCO_MAX) { blocos.push(bloco); bloco = []; tam = 0; }
+    bloco.push(u); tam += u.texto.length;
+  }
+  if (bloco.length) blocos.push(bloco);
+  const prontos = [];
+  const semMarcas = (s) => s.replace(/^\s*⟪\d+⟫\s*$/gm, "").replace(/\n{3,}/g, "\n\n").trim();
+  for (let b = 0; b < blocos.length; b++) {
+    const grupo = blocos[b];
+    const fonte = grupo.length === 1 ? grupo[0].texto : grupo.map((u) => `⟪${u.n}⟫\n${u.texto}`).join("\n\n");
+    const saida = await trTraduzirTexto(fonte,
+      (i, total) => aoProgresso && aoProgresso(blocos.length > 1
+        ? tr3(`Traduzindo o bloco ${b + 1} de ${blocos.length} — revisão ${i + 1} de ${total}…`, `Translating block ${b + 1} of ${blocos.length} — review ${i + 1} of ${total}…`, `ブロック ${b + 1}/${blocos.length} 翻訳中 — レビュー ${i + 1}/${total}…`)
+        : tr3(`Processando revisão ${i + 1} de ${total}…`, `Processing review ${i + 1} of ${total}…`, `レビュー ${i + 1}/${total} を処理中…`)),
+      (parcial) => aoParcial && aoParcial([...prontos, semMarcas(parcial)].join("\n\n")));
+    prontos.push(semMarcas(saida));
+    if (grupo.length === 1) { grupo[0].traducao = saida; continue; }
+    const partes = saida.split(/^\s*⟪(\d+)⟫\s*$/m);
+    const mapa = new Map();
+    for (let k = 1; k < partes.length; k += 2) mapa.set(+partes[k], (partes[k + 1] || "").trim());
+    if (grupo.every((u) => mapa.has(u.n))) grupo.forEach((u) => { u.traducao = mapa.get(u.n); });
+    else {
+      // O Gemini perdeu os marcadores: a tradução do bloco fica inteira na 1ª unidade e a conferência vale para o bloco.
+      grupo[0].traducao = semMarcas(saida);
+      grupo[0].textoBloco = grupo.map((u) => u.texto).join("\n\n");
+      grupo.slice(1).forEach((u) => { u.traducao = ""; });
+      grupo.forEach((u) => { u.semDivisao = true; });
+    }
+  }
+  us.forEach((u) => {
+    u.conferencia = u.semDivisao && u.textoBloco == null ? [] : trConferirTraducao(u.textoBloco != null ? u.textoBloco : u.texto, u.traducao || "");
+    delete u.textoBloco;
+  });
+  return us;
+}
+/* Texto final: com mais de uma unidade (ou PDF), cada página/imagem ganha um título. */
+function trTextoFinal(leitura, campo) {
+  const us = leitura.unidades.filter((u) => u.modo !== "em_branco" && String(u[campo] || "").trim());
+  if (leitura.tipo === "texto" || (us.length === 1 && leitura.tipo !== "pdf")) return us.map((u) => u[campo]).join("\n\n");
+  if (leitura.tipo === "docx") return us.map((u) => (u.ocr ? `[${u.rotulo} — ${tr3("texto lido por OCR", "text read by OCR", "OCR で読み取り")}]\n${u[campo]}` : u[campo])).join("\n\n");
+  return us.map((u) => `${u.rotulo}\n\n${u[campo]}`).join("\n\n");
+}
+
+/* ---------- 7) Apresentação: leitura, revisão e comparação ---------- */
+function trMarcar(txt, problemas) {
+  let h = esc(String(txt || "")).replace(/⟦([^⟧]*)⟧/g, `<mark class="tr-incerto" title="${esc(TR_INCERTO_ROTULO.incerto())}">⟦$1⟧</mark>`);
+  (problemas || []).filter((p) => p.tipo === "separador").forEach((p) => {
+    const alvo = esc(p.detalhe).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    h = h.replace(new RegExp(`(?<![\\d.,])${alvo}(?!\\d)`, "g"), (m) => `<mark class="tr-alerta" title="${esc(TR_CONF_ROTULO.separador(p))}">${m}</mark>`);
+  });
+  return h;
+}
+const TR_MODO_ROTULO = {
+  digital: () => tr3("texto digital", "digital text", "デジタルテキスト"),
+  imagem: () => tr3("imagem — lida por OCR", "image — read by OCR", "画像 — OCR で読み取り"),
+  misto: () => tr3("texto digital + figuras lidas por OCR", "digital text + figures read by OCR", "デジタル + 図を OCR"),
+  em_branco: () => tr3("sem conteúdo", "no content", "内容なし"),
+};
+/* No modo Texto o painel só aparece quando a conferência achou algo; no modo Arquivo, sempre. */
+function trLeituraVisivel() {
+  const L = tradutorLeitura;
+  if (!L) return false;
+  if (tradutorPrefs.modo === "texto") return L.tipo === "texto" && L.unidades.some((u) => (u.conferencia || []).length);
+  return L.tipo !== "texto";
+}
+function trRenderLeitura() {
+  if (!E.tradutorLeitura) return;
+  const L = tradutorLeitura;
+  const visivel = trLeituraVisivel();
+  E.tradutorLeitura.classList.toggle("hidden", !visivel);
+  if (!visivel) return;
+  const us = L.unidades;
+  const ocr = us.filter((u) => u.ocr).length;
+  const incertos = us.reduce((s, u) => s + u.incertos.length, 0);
+  const traduzido = us.some((u) => u.traducao != null);
+  const alertas = us.reduce((s, u) => s + (u.conferencia || []).length, 0);
+  const partes = us.filter((u) => u.modo !== "em_branco").length;
+  E.tradutorLeituraResumo.innerHTML = esc(tr3(
+    `${L.arquivo}: ${partes} ${partes === 1 ? "parte" : "partes"} com conteúdo · ${ocr} lida(s) por OCR · ${incertos} ponto(s) da leitura para revisar${traduzido ? ` · conferência da tradução: ${alertas ? `${alertas} alerta(s)` : "números, códigos e tabelas conferem com o original"}` : ""}.`,
+    `${L.arquivo}: ${partes} part(s) with content · ${ocr} read by OCR · ${incertos} reading point(s) to review${traduzido ? ` · translation check: ${alertas ? `${alertas} alert(s)` : "numbers, codes and tables match the original"}` : ""}.`,
+    `${L.arquivo}: ${partes} 部分 · OCR ${ocr} · 要確認 ${incertos}${traduzido ? ` · 翻訳チェック: ${alertas ? `警告 ${alertas}` : "一致"}` : ""}`))
+    + L.avisos.map((a) => `<span class="mt-1 block text-amber-700 dark:text-amber-300">${esc(a)}</span>`).join("");
+  E.btnTradutorLeituraTraduzir.textContent = traduzido ? tr3("Traduzir de novo com as correções", "Translate again with the corrections", "修正内容で再翻訳") : tr3("Traduzir esta leitura", "Translate this reading", "この内容を翻訳");
+  E.btnTradutorLeituraTraduzir.disabled = tradutorLeituraBusy;
+  const badge = (tipo, txt) => `<span class="inline-flex items-center rounded-sm px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${tipo === "ok" ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200" : tipo === "alerta" ? "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" : "bg-rinnai-g4 text-rinnai-g1"}">${esc(txt)}</span>`;
+  E.tradutorLeituraLista.trLeitura = L;
+  E.tradutorLeituraLista.innerHTML = us.map((u, i) => {
+    if (u.modo === "em_branco") return `<li class="rounded-rinnai border border-dashed border-rinnai-line px-3 py-2 text-[12px] text-rinnai-g3">${esc(u.rotulo)} — ${esc(TR_MODO_ROTULO.em_branco())}</li>`;
+    const conf = u.conferencia || [];
+    return `<li class="rounded-rinnai border border-rinnai-line p-3" data-tr-unidade="${i}">
+      <div class="mb-2 flex flex-wrap items-center gap-2">
+        <span class="text-[13px] font-semibold text-rinnai-g1">${esc(u.rotulo)}</span>
+        ${badge(u.modo === "digital" ? "info" : "ok", TR_MODO_ROTULO[u.modo]())}
+        ${u.incertos.length ? badge("alerta", tr3(`${u.incertos.length} para revisar`, `${u.incertos.length} to review`, `要確認 ${u.incertos.length}`)) : ""}
+        ${conf.length ? badge("alerta", tr3(`${conf.length} alerta(s) na tradução`, `${conf.length} translation alert(s)`, `翻訳警告 ${conf.length}`)) : u.traducao != null && !u.semDivisao ? badge("ok", tr3("tradução conferida", "translation checked", "翻訳チェック済み")) : ""}
+        ${u.imagemUrl || L.pdfBytes ? `<button type="button" data-tr-original="${i}" class="btn-ghost ml-auto !px-2.5 !py-1 !text-[11px]">${esc(tr3("Ver original", "View original", "原本を表示"))}</button>` : ""}
+      </div>
+      <div class="tr-original mb-2 hidden"></div>
+      <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div>
+          <p class="mb-1 text-[11px] font-bold uppercase tracking-wider text-rinnai-g3">${esc(u.ocr ? tr3("Texto lido (corrija aqui antes de traduzir)", "Text read (correct it here before translating)", "読み取りテキスト(翻訳前に修正可)") : tr3("Texto original", "Original text", "原文"))}</p>
+          <textarea data-tr-texto="${i}" rows="${Math.min(16, Math.max(5, String(u.texto || "").split("\n").length + 1))}" spellcheck="false" class="field resize-y font-mono !text-[12px] !leading-relaxed">${esc(u.texto || "")}</textarea>
+          ${u.incertos.length ? `<ul class="mt-1 space-y-0.5 text-[11.5px] text-amber-800 dark:text-amber-200">${u.incertos.map((x) => `<li>⚠ ${esc(TR_INCERTO_ROTULO[x.tipo]())}${x.trecho ? `: <b class="font-semibold">${esc(x.trecho)}</b>` : ""}${x.letras ? ` — ${esc(tr3("letra", "letter", "文字"))} ${x.letras.split(" ").map((c) => `“${esc(c)}”`).join(", ")}` : ""}</li>`).join("")}</ul>` : ""}
+        </div>
+        <div>
+          <p class="mb-1 text-[11px] font-bold uppercase tracking-wider text-rinnai-g3">${esc(tr3("Tradução", "Translation", "翻訳"))}</p>
+          ${u.traducao != null
+            ? `<div class="tr-traducao field max-h-[420px] overflow-auto whitespace-pre-wrap !text-[12.5px] !leading-relaxed">${trMarcar(u.traducao, conf)}</div>
+              ${conf.length ? `<ul class="mt-1 space-y-0.5 text-[11.5px] text-amber-800 dark:text-amber-200">${conf.map((x) => `<li>⚠ ${esc(TR_CONF_ROTULO[x.tipo](x))}</li>`).join("")}</ul>` : ""}
+              ${u.semDivisao ? `<p class="mt-1 text-[11.5px] text-amber-700 dark:text-amber-300">${esc(tr3("A tradução deste bloco de páginas não pôde ser separada por página: o texto do bloco inteiro aparece na primeira página dele.", "This block's translation could not be split by page: the whole block appears on its first page.", "このブロックの翻訳はページごとに分割できませんでした。"))}</p>` : ""}`
+            : `<p class="rounded-rinnai border border-dashed border-rinnai-line px-3 py-6 text-center text-[12px] text-rinnai-g3">${esc(tr3("Ainda não traduzido.", "Not translated yet.", "未翻訳"))}</p>`}
+        </div>
+      </div>
+    </li>`;
+  }).join("");
+}
+async function trMostrarOriginal(i, botao) {
+  const L = tradutorLeitura;
+  const u = L && L.unidades[i];
+  const caixa = botao.closest("[data-tr-unidade]").querySelector(".tr-original");
+  if (!u || !caixa) return;
+  if (!caixa.classList.contains("hidden")) { caixa.classList.add("hidden"); return; }
+  caixa.classList.remove("hidden");
+  if (caixa.querySelector("img")) return;
+  caixa.innerHTML = `<p class="text-[12px] text-rinnai-g3">${esc(tr3("Carregando o original…", "Loading the original…", "原本を読み込み中…"))}</p>`;
+  try {
+    let url = u.imagemUrl;
+    if (!url && L.pdfBytes) {
+      const pdf = await pdfjsLib.getDocument({ data: L.pdfBytes.slice(0) }).promise;
+      try { url = "data:image/jpeg;base64," + await pnRenderizarPaginaJpeg(pdf, u.n); } finally { try { await pdf.destroy(); } catch (e) {} }
+    }
+    caixa.innerHTML = url ? `<img src="${url}" alt="${esc(u.rotulo)}" class="max-h-[70vh] w-auto max-w-full rounded-rinnai border border-rinnai-line bg-white" />` : "";
+  } catch (err) { caixa.textContent = (err && err.message) || String(err); }
+}
+/* Correção manual da leitura: atualiza a unidade e refaz a verificação. */
+function trEditarTexto(i, valor) {
+  const u = tradutorLeitura && tradutorLeitura.unidades[i];
+  if (!u || u.texto === valor) return false;
+  u.texto = valor;
+  if (valor.trim()) u.erro = "";
+  u.incertos = trVerificarLeitura(u);
+  u.editado = true;
+  return true;
+}
+/* Traduz a leitura atual (com as correções do usuário), confere e mostra. */
+async function trExecutarTraducaoLeitura() {
+  const L = tradutorLeitura;
+  if (!L || tradutorLeituraBusy) return;
+  if (!hasApiKey()) { toast(t("toast.needKey")); openGlobalKeyModal(); return; }
+  // Correção ainda no campo (o foco não saiu dele): vale para esta tradução.
+  if (E.tradutorLeituraLista && E.tradutorLeituraLista.trLeitura === L && trLeituraVisivel()) {
+    E.tradutorLeituraLista.querySelectorAll("[data-tr-texto]").forEach((ta) => trEditarTexto(+ta.getAttribute("data-tr-texto"), ta.value));
+  }
+  if (!L.unidades.some((u) => u.modo !== "em_branco" && String(u.texto || "").trim())) {
+    toast(tr3("Não há texto para traduzir — corrija a leitura ou envie outro arquivo.", "There is no text to translate — correct the reading or send another file.", "翻訳するテキストがありません。"));
+    return;
+  }
+  tradutorLeituraBusy = true;
+  const botoes = [E.btnTraduzir, E.btnTradutorLeituraTraduzir].filter(Boolean);
+  const originais = botoes.map((b) => b.innerHTML);
+  botoes.forEach((b) => { b.disabled = true; });
+  try {
+    await trTraduzirLeitura(L,
+      (txt) => botoes.forEach((b) => { b.innerHTML = tradutorSpinnerHtml(txt); }),
+      (parcial) => { if (E.tradutorOutput) { E.tradutorOutput.value = parcial; tradutorAtualizarContadores(); } });
+    const final = trTextoFinal(L, "traducao");
+    if (E.tradutorOutput) E.tradutorOutput.value = final;
+    L.saidaFinal = final;
+    tradutorAtualizarContadores();
+    salvarHistoricoTradutor(trTextoFinal(L, "texto"), final);
+    const alertas = L.unidades.reduce((s, u) => s + (u.conferencia || []).length, 0);
+    toast(alertas
+      ? tr3(`Tradução concluída com ${alertas} alerta(s) na conferência de números, códigos e tabelas — veja a comparação.`, `Translation done with ${alertas} alert(s) in the check of numbers, codes and tables — see the comparison.`, `翻訳完了(チェック警告 ${alertas} 件)`)
+      : tr3("Tradução concluída — números, códigos e tabelas conferem com o original.", "Translation done — numbers, codes and tables match the original.", "翻訳完了 — 数値・コード・表は原文と一致しました。"));
+  } catch (err) {
+    console.error("[Tradutor]", err);
+    toast(tr3("Falha ao traduzir: ", "Translation failed: ", "翻訳に失敗しました: ") + ((err && err.message) || err));
+  } finally {
+    tradutorLeituraBusy = false;
+    botoes.forEach((b, k) => { b.innerHTML = originais[k]; b.disabled = false; });
+    tradutorAtualizarBotao();
+    trRenderLeitura();
+  }
+}
+/* DOCX "versão textual organizada": página a página, tabelas como tabelas e,
+   se pedido, a imagem da página original — sem alegar que o layout foi reproduzido. */
+async function trBaixarDocxOrganizado() {
+  const L = tradutorLeitura;
+  const us = L.unidades.filter((u) => u.modo !== "em_branco" && String(u.traducao || "").trim());
+  const comImagens = !!(E.tradutorIncluirImagens && E.tradutorIncluirImagens.checked);
+  const partes = [`<p style="font-size:9pt;color:#666666">${esc(tr3(
+    `Tradução de "${L.arquivo}" — versão textual organizada por página. O layout original não foi reproduzido; as tabelas foram reconstruídas a partir da leitura. Trechos entre ⟦ ⟧ tiveram leitura incerta no original.`,
+    `Translation of "${L.arquivo}" — text version organized by page. The original layout was not reproduced; tables were rebuilt from the reading. Passages in ⟦ ⟧ had an uncertain reading in the original.`,
+    `「${L.arquivo}」の翻訳 — ページ別のテキスト版。元のレイアウトは再現していません。⟦ ⟧ は原文の読み取りが不確かな箇所です。`))}</p>`];
+  let pdf = null;
+  try {
+    if (comImagens && L.pdfBytes) pdf = await pdfjsLib.getDocument({ data: L.pdfBytes.slice(0) }).promise;
+    for (const u of us) {
+      partes.push(`<h2>${esc(u.rotulo)}</h2>`);
+      if (comImagens) {
+        const img = u.imagemUrl || (pdf && u.n <= pdf.numPages ? "data:image/jpeg;base64," + await pnRenderizarPaginaJpeg(pdf, u.n) : "");
+        if (img) partes.push(`<p><img src="${img}" style="width:12cm" /></p><p style="font-size:9pt;color:#666666">${esc(tr3("Original", "Original", "原本"))}</p>`);
+      }
+      partes.push(validarFecharTags(marked.parse(stripLatex(u.traducao), { gfm: true, breaks: true })));
+    }
+  } finally { try { if (pdf) await pdf.destroy(); } catch (e) {} }
+  const titulo = tradutorTituloAtual();
+  const { blob, ext } = docxBlobFromDoc(docxHtmlDoc(partes.join(""), titulo));
+  downloadBlob(blob, safeName(titulo) + "." + ext);
 }
 
 /* ============================================================================
@@ -8006,7 +8575,7 @@ async function pnCoberturaImagem(page) {
     const mult = (m, n) => [m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1], m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3], m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5]];
     const pintaImagem = new Set([O.paintImageXObject, O.paintInlineImageXObject, O.paintJpegXObject, O.paintImageMaskXObject, O.paintImageXObjectRepeat].filter((x) => x != null));
     let ctm = [1, 0, 0, 1, 0, 0], area = 0, desenho = 0;
-    const pilha = [];
+    const pilha = [], retangulos = [];
     for (let i = 0; i < ops.fnArray.length; i++) {
       const fn = ops.fnArray[i], a = ops.argsArray[i];
       if (fn === O.save) pilha.push(ctm);
@@ -8014,10 +8583,15 @@ async function pnCoberturaImagem(page) {
       else if (fn === O.transform) ctm = mult(ctm, a);
       else if (fn === O.paintFormXObjectBegin) { pilha.push(ctm); if (a && Array.isArray(a[0]) && a[0].length === 6) ctm = mult(ctm, a[0]); }
       else if (fn === O.paintFormXObjectEnd) ctm = pilha.pop() || ctm;
-      else if (pintaImagem.has(fn)) { area += Math.abs(ctm[0] * ctm[3] - ctm[1] * ctm[2]); desenho++; }
+      else if (pintaImagem.has(fn)) {
+        area += Math.abs(ctm[0] * ctm[3] - ctm[1] * ctm[2]); desenho++;
+        // Retângulo da imagem no espaço da página (o Tradutor recorta cada figura para o OCR).
+        const xs = [ctm[4], ctm[4] + ctm[0], ctm[4] + ctm[2], ctm[4] + ctm[0] + ctm[2]], ys = [ctm[5], ctm[5] + ctm[1], ctm[5] + ctm[3], ctm[5] + ctm[1] + ctm[3]];
+        if (fn !== O.paintImageXObjectRepeat) retangulos.push({ x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) });
+      }
       else if (fn === O.constructPath) desenho++;
     }
-    return { imagem: areaPag ? Math.min(1, area / areaPag) : 0, desenho };
+    return { imagem: areaPag ? Math.min(1, area / areaPag) : 0, desenho, retangulos };
   } catch (e) { return { imagem: 0, desenho: -1 }; }
 }
 
@@ -17475,6 +18049,21 @@ if (E.btnTradutorOuvir) E.btnTradutorOuvir.addEventListener("click", () => {
 });
 if (E.btnTradutorDocx) E.btnTradutorDocx.addEventListener("click", () => tradutorBaixarDocx());
 if (E.btnTradutorTxt) E.btnTradutorTxt.addEventListener("click", () => tradutorBaixarTxt());
+
+/* Leitura (OCR) e comparação. */
+if (E.tradutorRevisarLeitura) E.tradutorRevisarLeitura.addEventListener("change", (e) => { tradutorPrefs.revisarLeitura = e.target.checked; tradutorSalvarPrefs(); });
+if (E.btnTradutorLeituraTraduzir) E.btnTradutorLeituraTraduzir.addEventListener("click", () => trExecutarTraducaoLeitura());
+if (E.tradutorLeituraLista) {
+  E.tradutorLeituraLista.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-tr-original]");
+    if (b) trMostrarOriginal(+b.getAttribute("data-tr-original"), b);
+  });
+  // A correção vale ao sair do campo: refaz a verificação daquela parte.
+  E.tradutorLeituraLista.addEventListener("change", (e) => {
+    const ta = e.target.closest("[data-tr-texto]");
+    if (ta && trEditarTexto(+ta.getAttribute("data-tr-texto"), ta.value)) trRenderLeitura();
+  });
+}
 
 /* Histórico de traduções. */
 if (E.btnTradutorHist) E.btnTradutorHist.addEventListener("click", () => abrirTradutorHist());
