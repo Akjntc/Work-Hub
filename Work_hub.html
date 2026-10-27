@@ -1346,6 +1346,7 @@
     <div class="mt-4 rounded-rinnai border border-rinnai-line bg-rinnai-g5 px-4 py-3 text-[12.5px]">
       <p id="backupResumo" class="font-semibold text-rinnai-g1"></p>
       <p id="backupUltimo" class="mt-0.5 text-rinnai-g3"></p>
+      <div id="backupArmazenamento" class="mt-2 border-t border-rinnai-line pt-2 text-[11.5px] leading-relaxed text-rinnai-g2"></div>
     </div>
     <input type="file" id="backupFileInput" accept=".json,application/json" class="hidden" />
     <div class="mt-5 flex flex-wrap gap-2">
@@ -1364,6 +1365,27 @@
         <svg class="pointer-events-none h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
         <span data-i18n="lgpd.apagarTudo">Apagar todos os meus dados deste navegador</span>
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- Aviso de armazenamento local (ver "MONITOR DE ARMAZENAMENTO LOCAL" no <script>).
+     Fecha só pelo botão "Estou ciente" — o usuário precisa confirmar a ciência. -->
+<div id="armazenamentoModal" class="fixed inset-0 z-[95] hidden items-center justify-center bg-black/55 p-4">
+  <div id="armCaixa" class="w-full max-w-lg rounded-rinnai-lg border-2 border-amber-400 bg-rinnai-card p-6 shadow-2xl" role="alertdialog" aria-modal="true" aria-labelledby="armTitulo" aria-describedby="armTexto">
+    <div class="flex items-start gap-3">
+      <span id="armIcone" class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-amber-100 text-amber-700">
+        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3"/><path d="M18 15v3M18 21h.01"/></svg>
+      </span>
+      <div class="min-w-0 flex-1">
+        <h2 id="armTitulo" class="text-[17px] font-bold text-rinnai-g1">Armazenamento local próximo do limite</h2>
+        <p id="armTexto" class="mt-2 text-[13px] leading-relaxed text-rinnai-g2"></p>
+        <ul id="armDetalhes" class="mt-3 hidden list-disc space-y-1 rounded-rinnai border border-rinnai-line bg-rinnai-g5 py-2 pl-7 pr-3 text-[12px] leading-relaxed text-rinnai-g2"></ul>
+      </div>
+    </div>
+    <div class="mt-5 flex flex-wrap justify-end gap-2">
+      <button type="button" id="btnArmBackup" class="btn-ghost !px-4 !py-2 !text-[13px]">Exportar backup agora</button>
+      <button type="button" id="btnArmCiente" class="btn-primary !px-5 !py-2 !text-[13px]">Estou ciente</button>
     </div>
   </div>
 </div>
@@ -6163,6 +6185,11 @@ if (PDFJS_OK) {
 
 /* ---------- utilitários ---------- */
 function toast(msg) {
+  // Logo após uma gravação recusada por falta de espaço, mensagens de
+  // sucesso seriam falsas — o aviso de falha (armFalhaDeGravacao) prevalece.
+  try {
+    if (armFalhaRecente() && /salv|saved|restaurad|restored|adicionad|added|cadastrad|atualizad|updated|importad|imported|inserid|conclu/i.test(msg) && !/não|NOT|falh|fail/i.test(msg)) return;
+  } catch (e) {}
   E.toast.textContent = msg;
   E.toast.style.opacity = "1";
   E.toast.style.transform = "translate(-50%,0)";
@@ -7160,6 +7187,7 @@ function renderTradutorRagList() {
 }
 async function tradutorAdicionarRagArquivos(fileList) {
   const arquivos = Array.from(fileList || []);
+  const qtdAntes = ragTradutorArquivos.length;
   for (const file of arquivos) {
     try {
       toast(`Lendo "${file.name}"…`);
@@ -7173,6 +7201,12 @@ async function tradutorAdicionarRagArquivos(fileList) {
       console.error("[tradutorAdicionarRagArquivos]", e);
       toast(`Falha ao ler "${file.name}": ${e.message || e}`);
     }
+  }
+  const novos = ragTradutorArquivos.slice(qtdAntes);
+  if (novos.length && !(await armConfirmarEspaco(JSON.stringify(novos).length * 2, "localStorage", tr3("os arquivos anexados", "the attached files", "添付ファイル")))) {
+    ragTradutorArquivos.length = qtdAntes; // desiste dos novos; os já salvos ficam como estão
+    renderTradutorRagList();
+    return;
   }
   lsSet(LS_TRADUTOR_ARQUIVOS, ragTradutorArquivos);
   renderTradutorRagList();
@@ -7553,13 +7587,21 @@ const pnNormasStore = {
     return lsGet(LS_PN_NORMAS_FALLBACK, []);
   },
   async salvar(norma) {
-    if (await pnAbrirDb()) { await pnIdb("readwrite", (st) => st.put(norma)); return; }
+    if (await pnAbrirDb()) {
+      try { await pnIdb("readwrite", (st) => st.put(norma)); }
+      catch (e) {
+        if (armEhErroDeCota(e)) { armFalhaDeGravacao("IndexedDB"); throw new Error(tr3("A norma NÃO foi salva: falta espaço no armazenamento do navegador. Os dados existentes foram mantidos.", "The standard was NOT saved: browser storage is full. Existing data was kept.", "保存されませんでした: 容量不足。")); }
+        throw e;
+      }
+      armAgendarVerificacao();
+      return;
+    }
     // Fallback: sem o PDF original (não cabe no localStorage), só o texto.
     const semBlob = { ...norma, blob: null };
     const lista = lsGet(LS_PN_NORMAS_FALLBACK, []).filter((n) => n.id !== norma.id);
     lista.push(semBlob);
     try { localStorage.setItem(LS_PN_NORMAS_FALLBACK, JSON.stringify(lista)); }
-    catch (e) { throw new Error("Sem espaço no armazenamento do navegador para esta norma. Remova normas antigas ou faça backup e limpe dados."); }
+    catch (e) { throw new Error(tr3("A norma NÃO foi salva: falta espaço no armazenamento do navegador. Exporte um backup e remova normas antigas antes de tentar de novo.", "The standard was NOT saved: browser storage is full.", "保存されませんでした: 容量不足。")); }
   },
   async remover(id) {
     if (await pnAbrirDb()) { await pnIdb("readwrite", (st) => st.delete(id)); return; }
@@ -8890,6 +8932,7 @@ async function pnSalvarNovaNorma(ev) {
   }
   const codigo = PN.codigo.value.trim(), titulo = PN.titulo.value.trim(), edicao = PN.edicao.value.trim();
   if (!codigo && !titulo) { toast(tr3("Informe ao menos o código ou o título da norma.", "Enter at least the code or title.", "番号またはタイトルを入力してください。")); return; }
+  if (!(await armConfirmarEspaco(JSON.stringify(doc.paginas).length * 2 + (doc.blob ? doc.blob.size : 0), "indexeddb", tr3("salvar esta norma", "saving this standard", "この規格の保存")))) return;
   const agora = Date.now();
   const norma = { id: "norma_" + agora.toString(36) + Math.random().toString(36).slice(2, 6), codigo, titulo, edicao, criadoEm: agora, atualizadoEm: agora,
     tipo: doc.tipo, arquivoNome: doc.arquivoNome || "", paginado: doc.paginado, paginas: doc.paginas, avisos: doc.avisos, blob: doc.blob || null };
@@ -8909,6 +8952,7 @@ async function pnSubstituirArquivo(file) {
   catch (err) { toast(tr3("Arquivo não substituído: ", "File not replaced: ", "差し替え失敗: ") + (err.message || err)); return; }
   const resumo = `${doc.paginas.length} ${doc.paginado ? "pág." : "blocos"}; ${(doc.avisos || []).filter((a) => a.nivel !== "info").length} ${tr3("aviso(s)", "warning(s)", "警告")}`;
   if (!confirm(tr3(`Substituir o documento de "${pnRotuloNorma(n)}" por "${file.name}" (${resumo})?\n\nO texto atual (inclusive transcrições por IA) será trocado. Os metadados são mantidos.`, `Replace the document of "${pnRotuloNorma(n)}" with "${file.name}" (${resumo})?`, `「${pnRotuloNorma(n)}」を差し替えますか？`))) return;
+  if (!(await armConfirmarEspaco(JSON.stringify(doc.paginas).length * 2 + (doc.blob ? doc.blob.size : 0), "indexeddb", tr3("o novo arquivo", "the new file", "新しいファイル")))) return;
   const nova = { ...n, tipo: doc.tipo, arquivoNome: doc.arquivoNome, paginado: doc.paginado, paginas: doc.paginas, avisos: doc.avisos, blob: doc.blob || null, atualizadoEm: Date.now() };
   if (!nova.codigo && doc.sugestao.codigo) nova.codigo = doc.sugestao.codigo;
   try { await pnNormasStore.salvar(nova); } catch (err) { toast(err.message); return; }
@@ -10500,7 +10544,8 @@ function projInserirImagemNaSecao(sec, file) {
   const msg = projChatMessages[msgIdx];
   const body = sec.querySelector(".editable-section-body");
   if (!msg || !body) return;
-  projComprimirImagem(file).then(({ dataUrl, naturalWidth }) => {
+  projComprimirImagem(file).then(async ({ dataUrl, naturalWidth }) => {
+    if (!(await armConfirmarEspaco(dataUrl.length * 2, "localStorage", tr3("esta imagem", "this image", "この画像")))) return;
     const wIdeal = Math.max(80, Math.min(320, naturalWidth || 320));
     const anchorIndex = (projLastEditableBody === body && projLastEditableRange)
       ? projBlockIndexFromNode(body, projLastEditableRange.startContainer)
@@ -14501,6 +14546,7 @@ function tamanhoLegivel(bytes) {
   return (bytes / 1024 / 1024).toFixed(2).replace(".", ",") + " MB";
 }
 function renderBackupResumo() {
+  armRenderResumoBackup();
   const dados = coletarDadosBackup();
   const n = Object.keys(dados).length;
   // localStorage guarda UTF-16 — 2 bytes por caractere é a medida que conta pra cota.
@@ -14545,10 +14591,33 @@ async function importarBackup(file) {
     `${quando} のバックアップから ${entradas.length} 件を復元しますか？\n\n同じ名前のデータは置き換えられ、それ以外は残ります。ページを再読み込みします。`
   );
   if (!confirm(msg)) return;
-  let falhas = 0;
-  for (const [k, v] of entradas) { try { localStorage.setItem(k, v); } catch (e) { falhas++; } }
-  if (normasPesq.length) falhas += normasPesq.length - await pnRestaurarNormasDoBackup(normasPesq);
-  if (falhas) toast(tr3(`${falhas} item(ns) não couberam no armazenamento do navegador.`, `${falhas} item(s) did not fit in browser storage.`, `${falhas} 件が保存容量に入りませんでした。`));
+  // Espaço: cresce só a diferença entre o que entra e o que é substituído.
+  let crescimento = 0;
+  for (const [k, v] of entradas) { let atual = null; try { atual = localStorage.getItem(k); } catch (e) {} crescimento += (v.length - (atual == null ? -k.length : atual.length)) * 2; }
+  if (!(await armConfirmarEspaco(crescimento, "localStorage", tr3("restaurar este backup", "restoring this backup", "このバックアップの復元")))) return;
+  if (normasPesq.length && !(await armConfirmarEspaco(JSON.stringify(normasPesq).length * 2, "indexeddb", tr3("as normas do backup", "the backup's standards", "バックアップの規格")))) return;
+  // Tudo ou nada no localStorage: se UMA chave não couber, as já gravadas
+  // voltam ao valor anterior — nenhum dado existente fica pela metade.
+  const anteriores = [];
+  let falhou = false;
+  for (const [k, v] of entradas) {
+    let antes = null; try { antes = localStorage.getItem(k); } catch (e) {}
+    try { localStorage.setItem(k, v); anteriores.push([k, antes]); }
+    catch (e) { falhou = true; break; }
+  }
+  if (falhou) {
+    for (const [k, antes] of anteriores.reverse()) {
+      try { localStorage.removeItem(k); if (antes != null) localStorage.setItem(k, antes); } catch (e) {}
+    }
+    toast(tr3("Backup NÃO restaurado: falta espaço no armazenamento do navegador. Seus dados atuais foram mantidos.", "Backup NOT restored: not enough browser storage. Your current data was kept.", "復元できませんでした: 容量不足。現在のデータは保持されています。"));
+    return;
+  }
+  const falhasNormas = normasPesq.length ? normasPesq.length - await pnRestaurarNormasDoBackup(normasPesq) : 0;
+  if (falhasNormas) {
+    toast(tr3(`Backup restaurado PARCIALMENTE: ${falhasNormas} norma(s) do Pesquisador não puderam ser salvas (falta de espaço). Recarregando…`, `Backup PARTIALLY restored: ${falhasNormas} Researcher standard(s) could not be saved (no space). Reloading…`, `一部のみ復元: ${falhasNormas} 件の規格を保存できませんでした。`));
+    setTimeout(() => location.reload(), 3500);
+    return;
+  }
   toast(tr3("Backup restaurado. Recarregando…", "Backup restored. Reloading…", "復元しました。再読み込み中…"));
   setTimeout(() => location.reload(), 900);
 }
@@ -14648,6 +14717,237 @@ async function apagarTodosOsDados() {
   toast(tr3("Dados apagados. Recarregando…", "Data deleted. Reloading…", "削除しました。再読み込み中…"));
   setTimeout(() => location.reload(), 900);
 }
+
+/* ---------------------------------------------------------------------------
+   1.c) MONITOR DE ARMAZENAMENTO LOCAL — aviso antes de o espaço acabar.
+   Dois mecanismos, medidos separadamente (cada um tem o SEU limite):
+   • localStorage — quase tudo do Portal. O navegador NÃO informa o limite
+     (navigator.storage.estimate() nem o inclui no Chrome), então o espaço
+     livre é medido por um TESTE DE GRAVAÇÃO numa chave temporária (busca
+     binária; nunca toca em dados do usuário) — resultado aproximado, exibido
+     como estimativa. Se o teste não for possível (armazenamento bloqueado,
+     modo privado), não há percentual: só a detecção de falhas de gravação.
+   • IndexedDB (normas do Pesquisador) — navigator.storage.estimate():
+     uso/cota que o navegador concede A ESTE SITE (não é o disco livre).
+   Alertas: ≥ 80 % → "atenção"; ≥ 95 % → "crítico". "Estou ciente" silencia o
+   mesmo nível por 24 h, salvo se o uso subir 5 pontos ou o nível piorar.
+   Toda gravação no localStorage passa pelo interceptador abaixo: falha por
+   cota → aviso específico de que os dados NÃO foram salvos (o erro continua
+   sendo propagado como antes — nenhum fluxo existente muda). Nada é apagado
+   automaticamente para liberar espaço.
+   --------------------------------------------------------------------------- */
+const ARM_LIMIAR_ATENCAO = 0.80, ARM_LIMIAR_CRITICO = 0.95;
+const LS_ARM_CIENCIA = "global_armazenamento_ciencia";
+const LS_ARM_SONDA = "global_armazenamento_sonda";
+const ARM_CHAVE_SONDA = "__workhub_sonda_espaco__";
+const ARM_CHAVES_SEM_AVISO = new Set([LS_ARM_CIENCIA, LS_ARM_SONDA, ARM_CHAVE_SONDA, "rinnai_ultimo_backup"]);
+const ARM_SNOOZE_MS = 24 * 3600 * 1000;
+let armUltimoEstado = null, armSondando = false, armUltimaFalha = 0, armCienciaMemoria = null, armTimer = null;
+const armSetItemOriginal = Storage.prototype.setItem;
+
+function armEhErroDeCota(e) {
+  return !!e && (e.name === "QuotaExceededError" || e.name === "NS_ERROR_DOM_QUOTA_REACHED" || e.code === 22 || e.code === 1014);
+}
+function armEhLocalStorage(st) { try { return st === window.localStorage; } catch (e) { return false; } }
+Storage.prototype.setItem = function (k, v) {
+  try { armSetItemOriginal.call(this, k, v); }
+  catch (e) {
+    if (!armSondando && armEhLocalStorage(this) && armEhErroDeCota(e) && !ARM_CHAVES_SEM_AVISO.has(String(k))) armFalhaDeGravacao("localStorage");
+    throw e;
+  }
+  if (!armSondando && armEhLocalStorage(this)) armAgendarVerificacao();
+};
+
+/* Uso do localStorage em caracteres (a cota dos navegadores é contada em
+   unidades UTF-16; 1 caractere ≈ 2 bytes). Conta TODAS as chaves do site. */
+function armUsoLocalStorage() {
+  let chars = 0;
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    chars += k.length + (localStorage.getItem(k) || "").length;
+  }
+  return chars;
+}
+/* Maior quantidade de caracteres que ainda cabe (busca binária, precisão de
+   32 mil caracteres). Devolve { livre, teto } ou null se o teste falhar. */
+function armSondarLivre() {
+  const MAX = 16 * 1024 * 1024, PASSO = 32 * 1024;
+  armSondando = true;
+  try {
+    try { armSetItemOriginal.call(localStorage, ARM_CHAVE_SONDA, "x"); }
+    catch (e) { return armEhErroDeCota(e) ? { livre: 0, teto: false } : null; }
+    finally { try { localStorage.removeItem(ARM_CHAVE_SONDA); } catch (e) {} }
+    let lo = 0, hi = MAX;
+    while (hi - lo > PASSO) {
+      const mid = Math.floor((lo + hi) / 2);
+      try { armSetItemOriginal.call(localStorage, ARM_CHAVE_SONDA, "x".repeat(mid - ARM_CHAVE_SONDA.length)); lo = mid; }
+      catch (e) { if (!armEhErroDeCota(e)) return null; hi = mid; }
+      finally { try { localStorage.removeItem(ARM_CHAVE_SONDA); } catch (e) {} }
+    }
+    return { livre: lo, teto: lo >= MAX - PASSO };
+  } finally { armSondando = false; }
+}
+/* Capacidade estimada = uso + livre medidos no mesmo momento; guardada para
+   não repetir o teste a cada verificação (refeita a cada 7 dias ou se o uso
+   passar da capacidade guardada). */
+function armCapacidadeLocalStorage(usoAtual, forcar) {
+  let s = null;
+  try { s = JSON.parse(localStorage.getItem(LS_ARM_SONDA) || "null"); } catch (e) {}
+  if (!forcar && s && s.capacidade > usoAtual && Date.now() - s.em < 7 * 24 * 3600 * 1000) return s;
+  const r = armSondarLivre();
+  if (!r) return null;
+  if (r.livre === 0 && usoAtual < 512 * 1024) return { indisponivel: true }; // gravação bloqueada, não "cheio"
+  const nova = { capacidade: usoAtual + r.livre, semLimite: r.teto, em: Date.now() };
+  try { armSetItemOriginal.call(localStorage, LS_ARM_SONDA, JSON.stringify(nova)); } catch (e) {}
+  return nova;
+}
+async function armEstimarIndexedDB() {
+  try {
+    if (!navigator.storage || typeof navigator.storage.estimate !== "function") return null;
+    const e = await navigator.storage.estimate();
+    if (!e || !(e.quota > 0) || typeof e.usage !== "number") return null;
+    return { uso: e.usage, cota: e.quota, pct: e.usage / e.quota };
+  } catch (e) { return null; }
+}
+async function armMedir(forcarSonda) {
+  const estado = { em: Date.now(), ls: null, idb: null };
+  try {
+    const uso = armUsoLocalStorage();
+    const cap = armCapacidadeLocalStorage(uso, forcarSonda);
+    if (cap && !cap.indisponivel) estado.ls = { uso, capacidade: cap.capacidade, livre: Math.max(0, cap.capacidade - uso), pct: Math.min(1, uso / cap.capacidade), semLimite: !!cap.semLimite };
+    else estado.ls = { uso, indisponivel: true };
+  } catch (e) { estado.ls = null; }
+  estado.idb = await armEstimarIndexedDB();
+  const pcts = [estado.ls && estado.ls.pct, estado.idb && estado.idb.pct].filter((x) => typeof x === "number");
+  estado.pct = pcts.length ? Math.max(...pcts) : null;
+  estado.nivel = estado.pct == null ? null : estado.pct >= ARM_LIMIAR_CRITICO ? "critico" : estado.pct >= ARM_LIMIAR_ATENCAO ? "atencao" : null;
+  armUltimoEstado = estado;
+  return estado;
+}
+const armBytes = (b) => (b >= 1024 ** 3 ? (b / 1024 ** 3).toFixed(1) + " GB" : b >= 1024 ** 2 ? (b / 1024 ** 2).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB").replace(".", ",");
+const armPct = (p) => (p * 100).toFixed(p >= 0.995 ? 0 : 1).replace(".", ",") + " %";
+
+/* ----- Aviso ----- */
+function armLerCiencia() {
+  if (armCienciaMemoria) return armCienciaMemoria;
+  try { return JSON.parse(localStorage.getItem(LS_ARM_CIENCIA) || "null"); } catch (e) { return null; }
+}
+function armDeveAvisar(estado) {
+  if (!estado.nivel) return false;
+  const c = armLerCiencia();
+  if (!c) return true;
+  const rank = { atencao: 1, critico: 2 };
+  if (rank[estado.nivel] > rank[c.nivel]) return true;
+  if (estado.pct - c.pct >= 0.05) return true;
+  return Date.now() - c.em > ARM_SNOOZE_MS;
+}
+function armDetalhesHtml(estado) {
+  const linhas = [];
+  if (estado.ls && !estado.ls.indisponivel) linhas.push(tr3(
+    `Dados do Portal (localStorage): ${armPct(estado.ls.pct)} do limite estimado em uso — cerca de ${armBytes(estado.ls.livre * 2)} livres de ~${armBytes(estado.ls.capacidade * 2)}. Limite medido por teste de gravação neste navegador (valor aproximado).`,
+    `Portal data (localStorage): ${armPct(estado.ls.pct)} of the estimated limit in use — about ${armBytes(estado.ls.livre * 2)} free of ~${armBytes(estado.ls.capacidade * 2)}. Limit measured by a write test in this browser (approximate).`,
+    `ポータルデータ (localStorage): 推定上限の ${armPct(estado.ls.pct)} を使用 — 約 ${armBytes(estado.ls.livre * 2)} 空き(書き込みテストによる概算)。`));
+  else if (estado.ls) linhas.push(tr3("Dados do Portal (localStorage): este navegador não permite estimar o limite; falhas de gravação serão avisadas.", "Portal data (localStorage): this browser does not allow estimating the limit; write failures will be reported.", "localStorage: 上限を推定できません。"));
+  if (estado.idb) linhas.push(tr3(
+    `Normas do Pesquisador (IndexedDB): ${armPct(estado.idb.pct)} da cota que o navegador concede a este site — ${armBytes(estado.idb.uso)} de ${armBytes(estado.idb.cota)} (estimativa do navegador; não é o espaço livre do disco).`,
+    `Researcher standards (IndexedDB): ${armPct(estado.idb.pct)} of the quota the browser grants this site — ${armBytes(estado.idb.uso)} of ${armBytes(estado.idb.cota)} (browser estimate; not free disk space).`,
+    `IndexedDB: サイト割当の ${armPct(estado.idb.pct)} (${armBytes(estado.idb.uso)} / ${armBytes(estado.idb.cota)})`));
+  return linhas.map((l) => `<li>${esc(l)}</li>`).join("");
+}
+function armMostrarModal(tipo, estado) {
+  const m = el("armazenamentoModal");
+  if (!m) return;
+  const critico = tipo === "critico", falha = tipo === "falha";
+  el("armTitulo").textContent = falha ? tr3("Os dados não puderam ser salvos", "The data could not be saved", "データを保存できませんでした")
+    : critico ? tr3("Armazenamento local quase esgotado", "Local storage almost full", "ローカルストレージがほぼ満杯です")
+      : tr3("Armazenamento local próximo do limite", "Local storage close to the limit", "ローカルストレージが上限に近づいています");
+  el("armTexto").innerHTML = falha
+    ? esc(tr3("O navegador recusou a última gravação por falta de espaço. A alteração que você acabou de fazer NÃO foi salva e será perdida ao recarregar a página. Os dados que já estavam salvos continuam intactos.",
+        "The browser refused the last write because it ran out of space. The change you just made was NOT saved and will be lost when the page reloads. Previously saved data is intact.",
+        "空き容量不足のため保存できませんでした。直前の変更は保存されていません。既存のデータは保持されています。"))
+      + "<br><br>" + esc(tr3("Exporte um backup antes de remover qualquer coisa e, depois, verifique quais informações podem ser removidas com segurança (procedimentos, projetos, normas ou histórico antigos).",
+        "Export a backup before removing anything, then check what can be safely removed (old procedures, projects, standards or history).",
+        "削除する前にバックアップをエクスポートしてください。"))
+    : esc(critico
+      ? tr3("O armazenamento deste aplicativo está praticamente cheio. Novos cadastros, alterações, importações e salvamentos podem falhar a qualquer momento.",
+          "This app's storage is practically full. New records, edits, imports and saves may fail at any moment.", "ストレージがほぼ満杯です。保存が失敗する可能性があります。")
+      : tr3("O aplicativo está utilizando uma parcela significativa do armazenamento disponível neste dispositivo. Se o espaço se esgotar, poderá não ser possível salvar novos dados ou concluir algumas operações.",
+          "The app is using a significant share of the storage available on this device. If space runs out, it may not be possible to save new data or complete some operations.", "ストレージの使用量が増えています。容量がなくなると保存できなくなる可能性があります。"))
+      + "<br><br>" + esc(tr3("Recomendamos exportar um backup dos seus dados e verificar se existem informações que possam ser removidas com segurança.",
+        "We recommend exporting a backup of your data and checking whether any information can be safely removed.", "バックアップのエクスポートを推奨します。"))
+      + "<br><br><b>" + esc(tr3("Por favor, confirme que tomou ciência deste aviso.", "Please confirm that you have read this notice.", "この通知を確認してください。")) + "</b>";
+  const det = estado ? armDetalhesHtml(estado) : "";
+  el("armDetalhes").innerHTML = det;
+  el("armDetalhes").classList.toggle("hidden", !det);
+  el("armCaixa").classList.toggle("border-red-500", critico || falha);
+  el("armCaixa").classList.toggle("border-amber-400", !(critico || falha));
+  el("armIcone").className = `grid h-10 w-10 shrink-0 place-items-center rounded-full ${critico || falha ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"}`;
+  el("btnArmCiente").textContent = falha ? tr3("Entendi", "Understood", "了解") : tr3("Estou ciente", "I understand", "確認しました");
+  m.setAttribute("data-tipo", tipo);
+  mostrarOverlay(m);
+}
+function armConfirmarCiencia() {
+  const m = el("armazenamentoModal");
+  const tipo = m.getAttribute("data-tipo");
+  esconderOverlay(m);
+  if (tipo !== "falha" && armUltimoEstado && armUltimoEstado.nivel) {
+    armCienciaMemoria = { nivel: armUltimoEstado.nivel, pct: armUltimoEstado.pct, em: Date.now() };
+    try { armSetItemOriginal.call(localStorage, LS_ARM_CIENCIA, JSON.stringify(armCienciaMemoria)); } catch (e) {}
+  }
+}
+async function armVerificar(forcarSonda) {
+  try {
+    const estado = await armMedir(forcarSonda);
+    if (estado.pct != null && estado.pct < 0.75) { // voltou a ter folga: o próximo aumento avisa de novo
+      armCienciaMemoria = null;
+      try { localStorage.removeItem(LS_ARM_CIENCIA); } catch (e) {}
+    }
+    const modal = el("armazenamentoModal");
+    if (armDeveAvisar(estado) && !(overlayAberto(modal) && modal.getAttribute("data-tipo") === "falha")) armMostrarModal(estado.nivel, estado);
+    return estado;
+  } catch (e) { console.warn("[Armazenamento] verificação falhou:", e && e.message); return null; }
+}
+function armAgendarVerificacao() { clearTimeout(armTimer); armTimer = setTimeout(() => armVerificar(false), 1500); }
+
+/* Falha real de gravação (cota) — avisa uma vez a cada 2 s, sem apagar nada. */
+function armFalhaDeGravacao(mecanismo) {
+  const agora = Date.now();
+  const repetida = agora - armUltimaFalha < 2000;
+  armUltimaFalha = agora;
+  console.warn(`[Armazenamento] gravação recusada por falta de espaço (${mecanismo}).`);
+  if (repetida) return;
+  setTimeout(async () => { const est = await armMedir(false).catch(() => null); armMostrarModal("falha", est); }, 0);
+}
+function armFalhaRecente() { return Date.now() - armUltimaFalha < 4000; }
+
+/* Checagem ANTES de operações grandes (importação, normas, imagens, anexos):
+   se a estimativa indicar que não cabe, pede confirmação. Sem estimativa,
+   segue — a falha, se houver, é detectada na gravação. */
+async function armConfirmarEspaco(bytes, mecanismo, rotulo) {
+  const est = await armMedir(false).catch(() => null);
+  let livre = null;
+  if (est && mecanismo === "localStorage" && est.ls && !est.ls.indisponivel && !est.ls.semLimite) livre = est.ls.livre * 2;
+  if (est && mecanismo === "indexeddb" && est.idb) livre = est.idb.cota - est.idb.uso;
+  if (livre == null || bytes <= livre * 0.95) return true;
+  return confirm(tr3(
+    `Espaço provavelmente insuficiente para ${rotulo}: são necessários cerca de ${armBytes(bytes)} e restam cerca de ${armBytes(livre)} (estimativa).\n\nSe continuar, a gravação pode falhar e os novos dados NÃO serão salvos (os dados existentes são mantidos). Recomendamos exportar um backup e liberar espaço antes.\n\nContinuar mesmo assim?`,
+    `Probably not enough space for ${rotulo}: about ${armBytes(bytes)} needed, about ${armBytes(livre)} left (estimate).\n\nIf you continue, the write may fail and the new data will NOT be saved (existing data is kept). We recommend exporting a backup and freeing space first.\n\nContinue anyway?`,
+    `${rotulo} の空き容量が不足している可能性があります。続行しますか？`));
+}
+
+/* Rodapé do modal de Backup: uso atual dos dois mecanismos. */
+async function armRenderResumoBackup() {
+  const alvo = el("backupArmazenamento");
+  if (!alvo) return;
+  const est = armUltimoEstado && Date.now() - armUltimoEstado.em < 60000 ? armUltimoEstado : await armMedir(false).catch(() => null);
+  alvo.innerHTML = est ? `<ul class="list-disc space-y-0.5 pl-4">${armDetalhesHtml(est)}</ul>` : esc(tr3("Não foi possível estimar o uso do armazenamento neste navegador.", "Storage usage could not be estimated in this browser.", "推定できません。"));
+}
+
+if (el("btnArmCiente")) el("btnArmCiente").addEventListener("click", () => armConfirmarCiencia());
+if (el("btnArmBackup")) el("btnArmBackup").addEventListener("click", () => exportarBackup());
+// 1ª verificação depois que a tela carregou; depois a cada 5 min e após gravações.
+setTimeout(() => armVerificar(false), 3000);
+setInterval(() => armVerificar(false), 5 * 60 * 1000);
 
 /* ---------------------------------------------------------------------------
    2) PALETA DE COMANDOS (Ctrl+K) + BUSCA GLOBAL
