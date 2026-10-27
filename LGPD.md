@@ -12,6 +12,7 @@
 | Sem forma de exercer o direito de eliminação | Botão "Apagar todos os meus dados deste navegador" na janela de Backup | art. 18 VI |
 | Texto da chave dizia que ela "não sai daqui" | Texto corrigido e aviso sobre a camada gratuita do Gemini | art. 6º VI |
 | Backup sem alerta de conteúdo | Aviso de que o arquivo contém os dados salvos e deve ser guardado com segurança | art. 46 |
+| Exportação DOCX dos procedimentos enviava o documento inteiro ao Gemini para "diagramar" | O DOCX agora é montado no navegador sobre o arquivo-modelo D04116, sem nenhuma chamada à IA (o mesmo vale para o PDF) | art. 6º III |
 
 ## Pesquisador de Informações de Normas
 
