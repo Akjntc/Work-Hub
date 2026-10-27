@@ -13,6 +13,16 @@
 | Texto da chave dizia que ela "não sai daqui" | Texto corrigido e aviso sobre a camada gratuita do Gemini | art. 6º VI |
 | Backup sem alerta de conteúdo | Aviso de que o arquivo contém os dados salvos e deve ser guardado com segurança | art. 46 |
 
+## Pesquisador de Informações de Normas
+
+| Tratamento | Como ficou |
+|---|---|
+| Normas cadastradas | Extraídas e guardadas só neste navegador (IndexedDB). Nada é enviado no cadastro. Entram no Backup (sem o PDF original) e no "Apagar todos os meus dados". |
+| Modo A (norma fornecida) | Só a pergunta e o texto da norma selecionada são enviados ao Gemini, no momento da pesquisa. Sem busca na internet. |
+| Modo B (pesquisa independente) | Só a pergunta é enviada. O Gemini a usa em consultas ao Google Search. Nenhuma norma cadastrada é lida. |
+| Transcrição de páginas por IA | Só acontece quando o usuário clica em "Transcrever". A imagem das páginas escolhidas é enviada ao Gemini. |
+| Aviso de privacidade | Passou para a versão 2, então todos aceitam de novo, porque a busca no Google é uma nova operação de tratamento. |
+
 ## Pendências da empresa (não se resolvem no código)
 
 1. **Chave de API da camada paga.** Na camada gratuita do Gemini API, o Google pode usar o conteúdo enviado para melhorar os produtos dele, e revisores humanos podem lê-lo. Use uma chave de um projeto com faturamento ativado, aprovado pela TI.
