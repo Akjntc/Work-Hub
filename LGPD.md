@@ -32,6 +32,14 @@
 | Fotos, PDFs digitalizados e imagens dentro de PDF/Word (OCR com IA) | Só o que não tem texto selecionável é enviado como imagem: a página inteira (digitalizada/foto) ou, numa página com texto, apenas o recorte de cada figura. Páginas em branco, ícones e logotipos pequenos não são enviados. Cada imagem é redesenhada antes do envio, o que descarta os metadados (GPS, aparelho). O conteúdo da imagem (rostos, crachás, assinaturas) **não** é mascarado — o aviso de privacidade já orienta o usuário a revisar o material. |
 | Leitura e tradução | Ficam só na tela (memória da página). O histórico do Tradutor guarda o texto, nunca as imagens nem o arquivo original. |
 
+## Ferramentaria (base de materiais)
+
+| Tratamento | Como ficou |
+|---|---|
+| Base de materiais de referência | Faz parte do próprio arquivo do app; consultar, comparar e analisar acontecem só no navegador, sem internet e sem IA. |
+| Variantes cadastradas pelo usuário | Ficam só neste navegador (`rinnai_ferr_materiais`); entram no Backup e no "Apagar todos os meus dados". |
+| "Aprofundar com o Gemini" | Só quando o usuário clica: envia a aplicação, as condições informadas e os dados técnicos dos materiais candidatos (com as fontes). Não envia dados pessoais; o aviso de privacidade já aceito cobre o envio. |
+
 ## Pendências da empresa (não se resolvem no código)
 
 1. **Chave de API da camada paga.** Na camada gratuita do Gemini API, o Google pode usar o conteúdo enviado para melhorar os produtos dele, e revisores humanos podem lê-lo. Use uma chave de um projeto com faturamento ativado, aprovado pela TI.
